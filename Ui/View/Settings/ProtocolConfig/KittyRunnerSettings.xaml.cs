@@ -10,6 +10,9 @@ namespace _1RM.View.Settings.ProtocolConfig
 {
     public partial class KittyRunnerSettings : UserControl
     {
+        // This control exists to edit a KittyRunner, which is [Obsolete] but still deserialized from older
+        // protocol configurations, so every mention of the type below is deliberate.
+#pragma warning disable CS0612
         public static readonly DependencyProperty RunnerProperty =
             DependencyProperty.Register("Runner", typeof(KittyRunner), typeof(KittyRunnerSettings),
                 new PropertyMetadata(null, new PropertyChangedCallback(OnDataChanged)));
@@ -46,6 +49,7 @@ namespace _1RM.View.Settings.ProtocolConfig
             get => (KittyRunner)GetValue(RunnerProperty);
             set => SetValue(RunnerProperty, value);
         }
+#pragma warning restore CS0612
 
 
         public KittyRunnerSettings()

@@ -13,7 +13,11 @@ namespace _1RM.Model.ProtocolRunner
     [JsonKnownType(typeof(Runner), nameof(Runner))]
     [JsonKnownType(typeof(ExternalRunner), nameof(ExternalRunner))]
     [JsonKnownType(typeof(InternalDefaultRunner), nameof(InternalDefaultRunner))]
+    // KittyRunner is [Obsolete], but dropping it here would make every protocol configuration that still
+    // names a KiTTY runner fail to deserialize, so the registration - and the warning it raises - stays.
+#pragma warning disable CS0612
     [JsonKnownType(typeof(KittyRunner), nameof(KittyRunner))]
+#pragma warning restore CS0612
     [JsonKnownType(typeof(PuttyRunner), nameof(PuttyRunner))]
     public class Runner : NotifyPropertyChangedBase, ICloneable
     {
