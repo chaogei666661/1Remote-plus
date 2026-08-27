@@ -52,7 +52,7 @@ jobs:
       # cache nuget packages: https://github.com/actions/cache
       - name: Cache nuget packages
         id: cache-nuget-packages
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ${{ github.workspace }}\.nuget\packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('Ui/Ui.csproj') }}
@@ -61,7 +61,7 @@ jobs:
 
       - name: Cache nuget packages home # https://github.com/actions/cache
         id: cache-nuget-packages-home
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: C:\Users\runneradmin\.nuget\packages
           key: ${{ runner.os }}-nuget-home-${{ hashFiles('Ui/Ui.csproj') }}
@@ -97,6 +97,18 @@ jobs:
       - name: Get Version
         id: get_version
         run: ./scripts/Get-Version.ps1
+
+      # The restore above is msbuild on Ui only, so the test project has never been restored here and
+      # needs its own pass before it can build.
+      - name: Restore the test project 📦️
+        run: dotnet restore Tests/Tests.csproj
+
+      # Nothing used to run these: the suite existed and a regression in it shipped unnoticed. It goes
+      # before the publish steps so a broken build never becomes a release artifact. The runner is
+      # windows-latest with the same .NET 9 SDK the app needs, so the WPF-flavoured test project builds
+      # and runs here exactly as it does on a developer machine.
+      - name: Run tests 🧪
+        run: dotnet test Tests/Tests.csproj -c Release
 
       # echo ${{env.BuildVersion}} and ${{env.PreRelease}}
       # - name: Echo Version
@@ -175,7 +187,7 @@ jobs:
           echo ${{needs.JobBuild.outputs.PreRelease}}
 
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: recursive
@@ -306,7 +318,7 @@ jobs:
           echo ${{needs.JobBuild.outputs.PreRelease}}
 
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: recursive

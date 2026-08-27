@@ -1,0 +1,29 @@
+version: 2
+
+# Nothing here bumps anything on its own: every entry opens a pull request that still has to build on
+# windows-latest and pass the test step before it can be merged. The point is that a pinned dependency
+# stops going quietly stale — several of the NuGet pins in Ui.csproj had not moved in years.
+updates:
+  - package-ecosystem: nuget
+    directory: /Ui
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+
+  - package-ecosystem: nuget
+    directory: /Tests
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
