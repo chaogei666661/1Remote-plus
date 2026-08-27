@@ -199,6 +199,9 @@ public class CredentialViewModel : NotifyPropertyChangedBaseScreen
     {
         // Reports the length rather than the secret: the point is to confirm the command works, and echoing
         // a password into the editor would defeat the reason for keeping it in a vault.
+        //
+        // A successful test also records the command as approved for this machine, so connecting does not
+        // ask about a command the user just watched run from this button.
         var (ok, message, length) = ExternalSecretResolver.Test(New.Password);
         ExternalSecretResult = ok
             ? IoC.Translate("external_secret_test_ok", length.ToString())

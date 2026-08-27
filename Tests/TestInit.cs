@@ -1,6 +1,7 @@
 using _1RM;
 using _1RM.Service;
 using _1RM.Utils;
+using _1RM.Utils.ExternalSecret;
 using Shawn.Utils.Interface;
 
 namespace Tests
@@ -11,10 +12,15 @@ namespace Tests
         /// The least the app's static helpers need before anything under test touches them: a salt for the
         /// string cipher, and a language service that echoes keys back so asserting on translated text does
         /// not depend on which language file happens to be loaded.
+        ///
+        /// It also opts out of the <c>cmd://</c> approval gate. That gate exists to put a dialog in front of
+        /// a command nobody approved, and a test run has nobody to answer it; the tests that cover the gate
+        /// itself turn the opt-out back off for their own duration.
         /// </summary>
         public static void Init()
         {
             UnSafeStringEncipher.Init("tests-only-salt");
+            ExternalSecretTrustStore.AutoApproveForTests = true;
 
             IoC.GetByType = (type, key) =>
             {
