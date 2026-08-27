@@ -10,7 +10,9 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-      - uses: actions/stale@v8
+      # v8 still asks for node16; v10 is the first major that runs on node24 natively. Every input below
+      # is unchanged between the two.
+      - uses: actions/stale@v10
         with:
           days-before-issue-stale: 30
           days-before-issue-close: 14
