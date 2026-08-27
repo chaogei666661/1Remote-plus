@@ -68,13 +68,48 @@ in any new fixture that touches app statics.
 
 ## Versioning
 
-`Ui/AppVersion.cs` is the human-edited source of truth — bump `Major`/`Minor`/`Patch`/`Build`/`PreRelease`
-there and nowhere else. During a non-Debug build the `PreBuild` target runs
-`scripts/Set-AssemblyVersion.ps1`, which overwrites `<AssemblyVersion>` in `Ui.csproj` with
-`Major.Minor.Patch.<date stamp>`; the value committed in the csproj is therefore always a leftover from
-whoever built last and is not worth editing. `scripts/Set-BuildDate.ps1` stamps `AppVersion.BuildDate` the
-same way and reverts it in `PostBuild`. CI reads the same constants through `scripts/Get-Version.ps1`,
-which is what decides whether a tag publishes as a stable release or a pre-release.
+`Ui/AppVersion.cs` is the source of truth for the version, but on `main` it is **not** hand-edited: every
+push there runs `scripts/Bump-BuildVersion.ps1` in CI, which increments `Build` by one and clears
+`PreRelease`, and the workflow commits that back as `chore(release): v<version> [skip ci]`. So do not
+edit `Build` in a commit destined for `main` — CI will bump on top of whatever it finds, and the number
+you wrote is simply the base it counts from. `Major`/`Minor`/`Patch` are still yours to change.
+
+`PreRelease` is deliberately kept empty on this fork. It is what `AppVersion.UpdateCheckUrls` keys off:
+empty means the in-app check reads `/releases/latest`, which only ever resolves to a full release, and it
+is also what keeps `scripts/Get-Version.ps1` from appending `-beta` to the version. Setting it back to
+`"beta"` would take effect for exactly one build, because the next CI bump clears it again.
+
+During a non-Debug build the `PreBuild` target runs `scripts/Set-AssemblyVersion.ps1`, which overwrites
+`<AssemblyVersion>` in `Ui.csproj` with `Major.Minor.Patch.<date stamp>`; the value committed in the
+csproj is therefore always a leftover from whoever built last and is not worth editing.
+`scripts/Set-BuildDate.ps1` stamps `AppVersion.BuildDate` the same way and reverts it in `PostBuild`. The
+release job restores both files before committing, so the bump commit carries only the two constants it
+owns. CI reads the same constants through `scripts/Get-Version.ps1`, which is what names the artifacts,
+the tag and the release.
+
+## Automatic releases
+
+`.github/workflows/build-on-dev-push.yml`:
+
+| event | bump | publish | release |
+| --- | --- | --- | --- |
+| push to `main`/`master` | yes | yes | yes, `v<version>`, never a pre-release |
+| push to another `*main*`/`*master*` branch | no | artifacts only | no |
+| pull request | no | no | no |
+| `workflow_dispatch` | only on `main`/`master` | as above | as above |
+
+The release is created with `gh release create --latest` and no `--prerelease`, so it is always a full
+release and `/releases/latest` points at it. Re-running the workflow over a tag that already shipped
+updates that release instead of failing.
+
+Three things stop this from looping:
+
+- the bump commit's subject contains `[skip ci]`, which GitHub honours by not starting a workflow, and
+  the job's `if` rejects `chore(release):` subjects a second time in case that ever changes
+- there is no `tags:` trigger, so the version tag the workflow pushes cannot start a second build
+- the release step is an upsert, so nothing double-publishes
+
+If you need to push to `main` without cutting a release, put `[skip ci]` in your own commit subject.
 
 ## Security-relevant behaviour
 

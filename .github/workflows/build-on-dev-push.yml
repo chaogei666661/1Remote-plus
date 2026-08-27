@@ -1,3 +1,12 @@
+# Every push to main/master bumps Ui/AppVersion.cs, builds it and publishes a full (never pre-release)
+# GitHub release. Three things stop that from feeding itself:
+#
+#   1. the version commit is subject "chore(release): <tag> [skip ci]", which GitHub itself refuses to
+#      build, and JobBuild's `if` rejects it a second time in case that ever stops being true
+#   2. there is deliberately no `tags:` trigger any more, so the version tag this workflow pushes cannot
+#      start a second build+release of the same commit
+#   3. the Release job upserts, so re-running it over a tag that already shipped refreshes that release
+#      instead of failing on "already_exists"
 name: Build/Publish on push
 
 on:
@@ -5,24 +14,35 @@ on:
     branches:
       - "*master*"
       - "*main*"
-    tags:
-      - "*"
-  # PRs never hit the push-to-main path, so without this the new test step would only run after merge.
+  # PRs never hit the push-to-main path, so without this the test step would only run after merge.
   pull_request:
     branches:
       - main
       - master
   # lets a build be started from the Actions tab without pushing another commit
   workflow_dispatch:
+
+# Two overlapping runs on the same branch would both bump from the same base and race on the push. The
+# queued one still starts from its own commit, so the bump step also re-reads the build number from the
+# remote before incrementing.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   JobBuild:
     permissions:
-      contents: write # for release-drafter/release-drafter to create a github release
+      contents: write # pushes the version bump commit and its tag
     name: build_and_release
     runs-on: windows-latest
     if: |
       github.event_name == 'pull_request' ||
-      !contains(github.event.head_commit.message, 'WIP')
+      (
+        !contains(github.event.head_commit.message, 'WIP') &&
+        !contains(github.event.head_commit.message, '[skip ci]') &&
+        !contains(github.event.head_commit.message, '[ci skip]') &&
+        !startsWith(github.event.head_commit.message, 'chore(release):')
+      )
 
     env:
       configuration: Release
@@ -42,6 +62,8 @@ jobs:
         with:
           fetch-depth: 0
           submodules: recursive
+          # left at the default on purpose: the bump commit below pushes with this token
+          persist-credentials: true
 
       # Install the .NET Core workload https://github.com/actions/setup-dotnet
       - name: Install .NET
@@ -74,6 +96,41 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-home
 
+      # A release is only ever cut from a push (or a manual run) that sits on main/master. Pull requests
+      # and every other branch get restore + test and write nothing back to the repository.
+      - name: Decide whether this run releases
+        id: gate
+        shell: bash
+        env:
+          RELEASE: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
+        run: |
+          echo "release=$RELEASE" >> "$GITHUB_OUTPUT"
+          echo "this run publishes a release: $RELEASE"
+
+      # Bump before the compile so the binaries actually carry the number that gets released. Nothing is
+      # committed here — if the tests below fail, the working-tree bump is simply thrown away with the
+      # runner.
+      - name: Bump the build number
+        id: bump
+        if: steps.gate.outputs.release == 'true'
+        shell: pwsh
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $false
+          # A run queued behind another one checks out its own, pre-bump commit, so the number in the
+          # tree may already be taken. Start from whichever of the two is higher.
+          $pattern = 'public const uint Build = (\d+);'
+          $local = [int][regex]::Match((Get-Content Ui/AppVersion.cs -Raw), $pattern).Groups[1].Value
+          $base = $local
+          git fetch --quiet origin $env:GITHUB_REF_NAME
+          if ($LASTEXITCODE -eq 0) {
+            $remoteFile = (git show "origin/$($env:GITHUB_REF_NAME):Ui/AppVersion.cs" | Out-String)
+            $match = [regex]::Match($remoteFile, $pattern)
+            if ($LASTEXITCODE -eq 0 -and $match.Success) {
+              $base = [Math]::Max($local, [int]$match.Groups[1].Value)
+            }
+          }
+          ./scripts/Bump-BuildVersion.ps1 -Build ($base + 1)
+
       # Restore nuget packages
       - name: Restore nuget packages 📦️
         run: msbuild $env:Main_Project /t:Restore /p:Configuration=$env:Configuration
@@ -99,7 +156,8 @@ jobs:
             ./scripts/Set-Secret.ps1 -filePath .\Ui\Assert.cs -Pattern $r.Pattern -Secret $r.Value
           }
 
-      # Get ${{env.BuildVersion}} and ${{env.PreRelease}}
+      # Get ${{env.BuildVersion}} and ${{env.PreRelease}} — after the bump, so they describe the build
+      # that is about to be published. PreRelease is always empty on a released build.
       - name: Get Version
         id: get_version
         run: ./scripts/Get-Version.ps1
@@ -116,36 +174,9 @@ jobs:
       - name: Run tests 🧪
         run: dotnet test Tests/Tests.csproj -c Release
 
-      # echo ${{env.BuildVersion}} and ${{env.PreRelease}}
-      # - name: Echo Version
-      #   shell: pwsh
-      #   if: ${{env.PreRelease}} != ""
-      #   run: |
-      #     echo ${{env.BuildVersion}}
-      #     echo ${{env.PreRelease}}
-
-      ## Publish the application Net4.8
-      #- name: Publish the application Net4.8
-      #  run: dotnet publish $env:Main_Project -p:PublishProfile=./Ui/Properties/PublishProfiles/x64-net48.pubxml
-      #  # run: msbuild $env:Main_Project -t:rebuild -verbosity:diag -property:Configuration=ReleaseNet48
-      ## artifact
-      #- uses: actions/upload-artifact@v4
-      #  with:
-      #    name: 1Remote-${{env.BuildVersion}}-net4.8(not recommended)
-      #    path: Ui/bin/Release/net4.8-windows/publish
-
-      # # Publish the application Net6.0
-      # - name: Publish the application net6
-      #   run: dotnet publish $env:Main_Project -p:PublishProfile=./Ui/Properties/PublishProfiles/x64-net60.pubxml
-      # # artifact
-      # - uses: actions/upload-artifact@v4
-      #   with:
-      #     name: 1Remote-${{env.BuildVersion}}-net6-x64
-      #     path: Ui/bin/Release/net6.0-windows/publish/win-x64
-
       # Publish the application net9.0
       # PRs only need restore + test; publishing twice on every review would dominate the wall clock
-      # and still not be a release. Push to main/tags keeps the original artifact path.
+      # and still not be a release.
       - name: Publish the application net9
         if: github.event_name != 'pull_request'
         run: dotnet publish $env:Main_Project -p:PublishProfile=./Ui/Properties/PublishProfiles/x64-net90.pubxml
@@ -167,65 +198,110 @@ jobs:
           name: 1Remote-${{env.BuildVersion}}-net9-x64-self-contained
           path: Ui/bin/Release/net9.0-windows-self-contained/publish/win-x64
 
+      # Only now that the tests passed and both artifacts exist does the new version become a fact in
+      # the repository. [skip ci] in the subject is what keeps this from starting another release.
+      - name: Commit and tag the new version
+        if: steps.gate.outputs.release == 'true'
+        shell: bash
+        env:
+          NEW_BUILD: ${{ steps.bump.outputs.build }}
+          BUILD_VERSION: ${{ env.BuildVersion }}
+        run: |
+          if [ -z "${BUILD_VERSION:-}" ]; then
+            echo "::error::BuildVersion is empty, refusing to tag"
+            exit 1
+          fi
+          BRANCH="$GITHUB_REF_NAME"
+          TAG="v$BUILD_VERSION"
+
+          tip_build() {
+            sed -n 's/.*public const uint Build = \([0-9][0-9]*\);.*/\1/p' Ui/AppVersion.cs | head -n 1
+          }
+
+          # The build rewrites Ui/Ui.csproj (AssemblyVersion) and stamps a build date into
+          # Ui/AppVersion.cs through the PreBuild/PostBuild targets, so restore the tree and re-apply the
+          # bump with the number this run already settled on. The commit then holds exactly the two
+          # constants the bump owns and nothing the compiler left behind.
+          git checkout -- Ui/AppVersion.cs Ui/Ui.csproj Ui/Assert.cs
+          pwsh -NoProfile -File ./scripts/Bump-BuildVersion.ps1 -Build "$NEW_BUILD"
+          cp Ui/AppVersion.cs ../AppVersion.bumped.cs
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          # Anything that landed on the branch while this build ran is moved onto rather than rebased
+          # over: a rebase would replay two edits of the same constant and stop on a conflict, while
+          # re-applying the file always resolves the way it has to, in favour of the higher number this
+          # run has already put in the binaries.
+          pushed=""
+          for attempt in 1 2 3; do
+            cp ../AppVersion.bumped.cs Ui/AppVersion.cs
+            git add Ui/AppVersion.cs
+            git commit -m "chore(release): $TAG [skip ci]"
+            if git push origin "HEAD:refs/heads/$BRANCH"; then
+              pushed="yes"
+              break
+            fi
+            echo "push rejected, moving the bump onto the new tip of $BRANCH (attempt $attempt)"
+            git fetch origin "$BRANCH"
+            git reset --hard FETCH_HEAD
+            if [ "$(tip_build)" -ge "$NEW_BUILD" ]; then
+              echo "::error::$BRANCH is already at build $(tip_build), but this run built $NEW_BUILD"
+              break
+            fi
+          done
+          if [ -z "$pushed" ]; then
+            echo "::error::could not push the version bump for $TAG"
+            exit 1
+          fi
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "::warning::$TAG already exists on origin, leaving it as it is"
+          else
+            git tag -a "$TAG" -m "$TAG"
+            git push origin "refs/tags/$TAG"
+          fi
+
     outputs:
       BuildVersion: ${{env.BuildVersion}}
       PreRelease: ${{env.PreRelease}}
-      # artifact_net48: 1Remote-${{env.BuildVersion}}-net4.8(not recommended)
-      # artifact_net6x: 1Remote-${{env.BuildVersion}}-net6-x64
+      release: ${{ steps.gate.outputs.release }}
+      tag: v${{env.BuildVersion}}
       artifact_net9x: 1Remote-${{env.BuildVersion}}-net9-x64
       artifact_net9xsc: 1Remote-${{env.BuildVersion}}-net9-x64-self-contained
 
-  # publish stable build, run only tag is not empty
-  StableRelease:
-    name: Stable publish
+  # Publishes the tag JobBuild just pushed. Always a full release: draft and prerelease are both off, so
+  # /releases/latest resolves to it and AppVersion.UpdateCheckUrls finds it.
+  Release:
+    name: Publish release
     runs-on: ubuntu-latest
     needs: JobBuild
     # granted per job, because a repository whose default workflow permission is read-only - which is the
-    # default for a new one, and for a fork - otherwise fails create-release with "Resource not accessible
-    # by integration"
+    # default for a new one, and for a fork - otherwise fails with "Resource not accessible by
+    # integration". A fork publishes to itself: gh acts on github.repository, and a fork's own
+    # GITHUB_TOKEN can write its releases. Only NightlyRelease stays pinned to upstream, because it
+    # uploads into a release id there.
     permissions:
       contents: write
-    # A tag publishes to the repository it was pushed in, a fork included: create-release and
-    # upload-release-asset both act on github.repository, and a fork's own GITHUB_TOKEN can write its
-    # releases. Only NightlyRelease stays pinned to upstream, because it uploads into a release id there.
-    if: |
-      startsWith(github.ref, 'refs/tags/') &&
-      needs.JobBuild.outputs.PreRelease == '' &&
-      !contains(github.event.head_commit.message, 'WIP')
+    if: needs.JobBuild.outputs.release == 'true'
+    env:
+      TAG: ${{needs.JobBuild.outputs.tag}}
+      NOTES: release-notes.md
     steps:
       - name: Echo
         run: |
-          echo ${{needs.JobBuild.outputs.BuildVersion}}
-          echo ${{needs.JobBuild.outputs.PreRelease}}
+          echo "version = ${{needs.JobBuild.outputs.BuildVersion}}"
+          echo "tag = $TAG"
 
+      # Checked out at the tag, not at the branch, so the release notes are cut against the same commit
+      # the assets were built from even if main has moved on since.
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: ${{needs.JobBuild.outputs.tag}}
           fetch-depth: 0
+          fetch-tags: true
           submodules: recursive
-
-      ## download artifact net4.8
-      #- uses: actions/download-artifact@v4.1.7
-      #  with:
-      #    name: ${{needs.JobBuild.outputs.artifact_net48}}
-      #    path: ${{needs.JobBuild.outputs.artifact_net48}}
-      ## zip
-      #- name: Easy Zip Files
-      #  uses: vimtor/action-zip@v1
-      #  with:
-      #    files: ${{needs.JobBuild.outputs.artifact_net48}}
-      #    dest: ${{needs.JobBuild.outputs.artifact_net48}}.zip
-
-      # # download artifact net6.x & ZIP
-      # - uses: actions/download-artifact@v4.1.7
-      #   with:
-      #     name: ${{needs.JobBuild.outputs.artifact_net6x}}
-      #     path: ${{needs.JobBuild.outputs.artifact_net6x}}
-      # - name: Easy Zip Files
-      #   uses: vimtor/action-zip@v1
-      #   with:
-      #     files: ${{needs.JobBuild.outputs.artifact_net6x}}
-      #     dest: ${{needs.JobBuild.outputs.artifact_net6x}}.zip
 
       # download artifact net9.x & ZIP
       - uses: actions/download-artifact@v4.1.7
@@ -247,208 +323,40 @@ jobs:
           files: ${{needs.JobBuild.outputs.artifact_net9xsc}}
           dest: ${{needs.JobBuild.outputs.artifact_net9xsc}}.zip
 
-      # make release
       - name: Generate release notes from git log
-        id: notes
         shell: bash
         run: |
-          NOTES="$(mktemp)"
-          trap 'rm -f "$NOTES"' EXIT
-          bash .github/scripts/release-notes.sh > "$NOTES"
-          {
-            echo 'body<<NOTES_EOF'
-            cat "$NOTES"
-            echo 'NOTES_EOF'
-          } >> "$GITHUB_OUTPUT"
+          # The tag has to be passed in: the script falls back to GITHUB_REF_NAME, which is the branch
+          # name on a push and would make it diff main against itself.
+          bash .github/scripts/release-notes.sh "$TAG" > "$NOTES"
+          cat "$NOTES"
 
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          # Bare tag, no "Release " prefix: every release up to v1.3.0.9-beta was titled after its tag,
-          # because changelogithub renamed them on the way out. Now that it is gone, the title this step
-          # sets is the one that sticks, so it has to match.
-          release_name: ${{ github.ref_name }}
-          body: ${{ steps.notes.outputs.body }}
-          draft: false
-          prerelease: false
-
-      ## upload package net4.8
-      #- name: Upload Release Asset
-      #  uses: actions/upload-release-asset@v1
-      #  env:
-      #    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      #  with:
-      #    upload_url: ${{ steps.create_release.outputs.upload_url }}
-      #    asset_path: ${{needs.JobBuild.outputs.artifact_net48}}.zip
-      #    asset_name: ${{needs.JobBuild.outputs.artifact_net48}}.zip
-      #    asset_content_type: application/zip
-
-      # # upload package net6.x
-      # - name: Upload Release Asset net6
-      #   uses: actions/upload-release-asset@v1
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      #   with:
-      #     upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
-      #     asset_path: ${{needs.JobBuild.outputs.artifact_net6x}}.zip
-      #     asset_name: ${{needs.JobBuild.outputs.artifact_net6x}}(obsolete).zip
-      #     asset_content_type: application/zip
-      #     prerelease: false
-
-      # upload package net9.x
-      - name: Upload Release Asset net9
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
-          asset_path: ${{needs.JobBuild.outputs.artifact_net9x}}.zip
-          asset_name: ${{needs.JobBuild.outputs.artifact_net9x}}.zip
-          asset_content_type: application/zip
-      - name: Upload Release Asset net9xsc
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
-          asset_path: ${{needs.JobBuild.outputs.artifact_net9xsc}}.zip
-          asset_name: ${{needs.JobBuild.outputs.artifact_net9xsc}}.zip
-          asset_content_type: application/zip
-
-  PreRelease:
-    name: pre-release publish
-    runs-on: ubuntu-latest
-    needs: JobBuild
-    permissions:
-      contents: write
-    # see the note on StableRelease: a tag publishes to the repository it was pushed in
-    if: |
-      startsWith(github.ref, 'refs/tags/') &&
-      needs.JobBuild.outputs.PreRelease != '' &&
-      !contains(github.event.head_commit.message, 'WIP')
-    steps:
-      - name: Echo
-        run: |
-          echo ${{needs.JobBuild.outputs.BuildVersion}}
-          echo ${{needs.JobBuild.outputs.PreRelease}}
-
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          submodules: recursive
-
-      ## download artifact net4.8
-      #- uses: actions/download-artifact@v4.1.7
-      #  with:
-      #    name: ${{needs.JobBuild.outputs.artifact_net48}}
-      #    path: ${{needs.JobBuild.outputs.artifact_net48}}
-      ## zip
-      #- name: Easy Zip Files
-      #  uses: vimtor/action-zip@v1
-      #  with:
-      #    files: ${{needs.JobBuild.outputs.artifact_net48}}
-      #    dest: ${{needs.JobBuild.outputs.artifact_net48}}.zip
-
-      # # download artifact net6.x & zip
-      # - uses: actions/download-artifact@v4.1.7
-      #   with:
-      #     name: ${{needs.JobBuild.outputs.artifact_net6x}}
-      #     path: ${{needs.JobBuild.outputs.artifact_net6x}}
-      # - uses: vimtor/action-zip@v1
-      #   with:
-      #     files: ${{needs.JobBuild.outputs.artifact_net6x}}
-      #     dest: ${{needs.JobBuild.outputs.artifact_net6x}}.zip
-
-      # download artifact net9.x & zip
-      - uses: actions/download-artifact@v4.1.7
-        with:
-          name: ${{needs.JobBuild.outputs.artifact_net9x}}
-          path: ${{needs.JobBuild.outputs.artifact_net9x}}
-      - uses: vimtor/action-zip@v1
-        with:
-          files: ${{needs.JobBuild.outputs.artifact_net9x}}
-          dest: ${{needs.JobBuild.outputs.artifact_net9x}}.zip
-      - uses: actions/download-artifact@v4.1.7
-        with:
-          name: ${{needs.JobBuild.outputs.artifact_net9xsc}}
-          path: ${{needs.JobBuild.outputs.artifact_net9xsc}}
-      - name: Easy Zip Files
-        uses: vimtor/action-zip@v1
-        with:
-          files: ${{needs.JobBuild.outputs.artifact_net9xsc}}
-          dest: ${{needs.JobBuild.outputs.artifact_net9xsc}}.zip
-
-      # make release
-      - name: Generate release notes from git log
-        id: notes
+      - name: Publish the release
         shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NET9: ${{needs.JobBuild.outputs.artifact_net9x}}.zip
+          NET9SC: ${{needs.JobBuild.outputs.artifact_net9xsc}}.zip
         run: |
-          NOTES="$(mktemp)"
-          trap 'rm -f "$NOTES"' EXIT
-          bash .github/scripts/release-notes.sh > "$NOTES"
-          {
-            echo 'body<<NOTES_EOF'
-            cat "$NOTES"
-            echo 'NOTES_EOF'
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          # see the note on StableRelease: the title has to match the tag-only titles of every release
-          # published while changelogithub was still overwriting them
-          release_name: ${{ github.ref_name }}
-          body: ${{ steps.notes.outputs.body }}
-          draft: false
-          prerelease: true
-
-      ## upload package net4.8
-      #- name: Upload Release Asset
-      #  uses: actions/upload-release-asset@v1
-      #  env:
-      #    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      #  with:
-      #    upload_url: ${{ steps.create_release.outputs.upload_url }}
-      #    asset_path: ${{needs.JobBuild.outputs.artifact_net48}}.zip
-      #    asset_name: ${{needs.JobBuild.outputs.artifact_net48}}.zip
-      #    asset_content_type: application/zip
-
-      # # upload package net6.x
-      # - uses: actions/upload-release-asset@v1
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      #   with:
-      #     upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
-      #     asset_path: ${{needs.JobBuild.outputs.artifact_net6x}}.zip
-      #     asset_name: ${{needs.JobBuild.outputs.artifact_net6x}}(obsolete).zip
-      #     asset_content_type: application/zip
-
-      # upload package net9.x
-      - uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
-          asset_path: ${{needs.JobBuild.outputs.artifact_net9x}}.zip
-          asset_name: ${{needs.JobBuild.outputs.artifact_net9x}}.zip
-          asset_content_type: application/zip
-      - uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
-          asset_path: ${{needs.JobBuild.outputs.artifact_net9xsc}}.zip
-          asset_name: ${{needs.JobBuild.outputs.artifact_net9xsc}}.zip
-          asset_content_type: application/zip
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            # A re-run over a tag that already shipped refreshes it instead of failing, and demotes it
+            # back to a full release if it was ever marked otherwise.
+            echo "$TAG already exists, updating it"
+            gh release upload "$TAG" "$NET9" "$NET9SC" --clobber
+            gh release edit "$TAG" \
+              --title "$TAG" \
+              --notes-file "$NOTES" \
+              --draft=false \
+              --prerelease=false \
+              --latest
+          else
+            # No --prerelease anywhere: gh defaults to a full release, which is the point of this job.
+            gh release create "$TAG" "$NET9" "$NET9SC" \
+              --title "$TAG" \
+              --notes-file "$NOTES" \
+              --verify-tag \
+              --latest
+          fi
 
   # publish nightly build
   NightlyRelease:
