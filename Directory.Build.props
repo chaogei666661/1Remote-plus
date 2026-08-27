@@ -2,9 +2,9 @@
 
   <!--
     Shawn.Utils and Dragablz are git submodules (VShawn/Shawn.Utils and 1Remote/Dragablz). Their compiler
-    warnings cannot be fixed from this repository without forking them, and every build spends four
-    annotations on them. Silence those four codes for those two trees only - Ui, Tests and everything else
-    keep the full warning set, so a real nullability bug of ours still shows up in the build log.
+    warnings cannot be fixed from this repository without forking them, and every build spends part of its
+    annotation budget on them. Silence the codes they raise, for those two trees only - Ui, Tests and
+    everything else keep the full warning set, so a real nullability bug of ours still shows up.
 
     MSBuild imports this file into every project under the repository root, so the trees are told apart by
     where the project sits relative to that root.
