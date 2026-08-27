@@ -57,8 +57,11 @@ jobs:
           echo "home = $HOME"
           echo "github.ref = ${{ github.ref }}"
 
+      # Every action below is pinned to a major that declares `runs.using: node24`. GitHub forces anything
+      # still asking for node20 onto node24 anyway and annotates the run for it, so the pin only makes
+      # explicit what the runner already does.
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
           submodules: recursive
@@ -67,7 +70,7 @@ jobs:
 
       # Install the .NET Core workload https://github.com/actions/setup-dotnet
       - name: Install .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             6.0.x
@@ -75,12 +78,12 @@ jobs:
 
       # Add MSBuild to the PATH: https://github.com/microsoft/setup-msbuild
       - name: Setup MSBuild.exe
-        uses: microsoft/setup-msbuild@v2
+        uses: microsoft/setup-msbuild@v3
 
       # cache nuget packages: https://github.com/actions/cache
       - name: Cache nuget packages
         id: cache-nuget-packages
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ github.workspace }}\.nuget\packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('Ui/Ui.csproj') }}
@@ -89,7 +92,7 @@ jobs:
 
       - name: Cache nuget packages home # https://github.com/actions/cache
         id: cache-nuget-packages-home
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: C:\Users\runneradmin\.nuget\packages
           key: ${{ runner.os }}-nuget-home-${{ hashFiles('Ui/Ui.csproj') }}
@@ -150,7 +153,10 @@ jobs:
           )
           foreach ($r in $replacements) {
             if ([string]::IsNullOrWhiteSpace($r.Value)) {
-              Write-Host "::warning::No secret configured for $($r.Pattern), keeping the placeholder."
+              # A notice, not a warning: on a fork these two secrets are expected to be missing, and the
+              # placeholder build is the documented outcome rather than something that needs looking at.
+              # The app itself still says so at runtime. See DEVELOP.md.
+              Write-Host "::notice::No secret configured for $($r.Pattern), keeping the placeholder."
               continue
             }
             ./scripts/Set-Secret.ps1 -filePath .\Ui\Assert.cs -Pattern $r.Pattern -Secret $r.Value
@@ -181,7 +187,10 @@ jobs:
         if: github.event_name != 'pull_request'
         run: dotnet publish $env:Main_Project -p:PublishProfile=./Ui/Properties/PublishProfiles/x64-net90.pubxml
       # artifact
-      - uses: actions/upload-artifact@v4
+      # upload-artifact@v6 and download-artifact@v7 are the same generation of the artifact client (both
+      # ship @actions/artifact v4 on node24). Upgrade the two together or the download job stops finding
+      # what this job stored.
+      - uses: actions/upload-artifact@v6
         if: github.event_name != 'pull_request'
         with:
           name: 1Remote-${{env.BuildVersion}}-net9-x64
@@ -192,7 +201,7 @@ jobs:
         if: github.event_name != 'pull_request'
         run: dotnet publish $env:Main_Project -p:PublishProfile=./Ui/Properties/PublishProfiles/x64-net90-self-contained.pubxml
       # artifact
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: github.event_name != 'pull_request'
         with:
           name: 1Remote-${{env.BuildVersion}}-net9-x64-self-contained
@@ -296,7 +305,7 @@ jobs:
       # Checked out at the tag, not at the branch, so the release notes are cut against the same commit
       # the assets were built from even if main has moved on since.
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{needs.JobBuild.outputs.tag}}
           fetch-depth: 0
@@ -304,21 +313,21 @@ jobs:
           submodules: recursive
 
       # download artifact net9.x & ZIP
-      - uses: actions/download-artifact@v4.1.7
+      - uses: actions/download-artifact@v7
         with:
           name: ${{needs.JobBuild.outputs.artifact_net9x}}
           path: ${{needs.JobBuild.outputs.artifact_net9x}}
       - name: Easy Zip Files
-        uses: vimtor/action-zip@v1
+        uses: vimtor/action-zip@v1.3
         with:
           files: ${{needs.JobBuild.outputs.artifact_net9x}}
           dest: ${{needs.JobBuild.outputs.artifact_net9x}}.zip
-      - uses: actions/download-artifact@v4.1.7
+      - uses: actions/download-artifact@v7
         with:
           name: ${{needs.JobBuild.outputs.artifact_net9xsc}}
           path: ${{needs.JobBuild.outputs.artifact_net9xsc}}
       - name: Easy Zip Files
-        uses: vimtor/action-zip@v1
+        uses: vimtor/action-zip@v1.3
         with:
           files: ${{needs.JobBuild.outputs.artifact_net9xsc}}
           dest: ${{needs.JobBuild.outputs.artifact_net9xsc}}.zip
@@ -375,25 +384,27 @@ jobs:
           echo ${{needs.JobBuild.outputs.PreRelease}}
 
       # download artifact net9.x & ZIP
-      - uses: actions/download-artifact@v4.1.7
+      - uses: actions/download-artifact@v7
         with:
           name: ${{needs.JobBuild.outputs.artifact_net9x}}
           path: ${{needs.JobBuild.outputs.artifact_net9x}}
-      - uses: vimtor/action-zip@v1
+      - uses: vimtor/action-zip@v1.3
         with:
           files: ${{needs.JobBuild.outputs.artifact_net9x}}
           dest: ${{needs.JobBuild.outputs.artifact_net9x}}.zip
-      - uses: actions/download-artifact@v4.1.7
+      - uses: actions/download-artifact@v7
         with:
           name: ${{needs.JobBuild.outputs.artifact_net9xsc}}
           path: ${{needs.JobBuild.outputs.artifact_net9xsc}}
-      - uses: vimtor/action-zip@v1
+      - uses: vimtor/action-zip@v1.3
         with:
           files: ${{needs.JobBuild.outputs.artifact_net9xsc}}
           dest: ${{needs.JobBuild.outputs.artifact_net9xsc}}.zip
 
       # for 1Remote project
       # publish nightly with WebFreak001/deploy-nightly@v2.0.0
+      # Left on v2.0.0: the action has no node24 release yet, and this job only ever runs on the upstream
+      # repository, so it is not part of the annotations a fork's build produces.
       - uses: WebFreak001/deploy-nightly@v2.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # automatically provided by github actions

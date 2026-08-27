@@ -1,0 +1,32 @@
+<Project>
+
+  <!--
+    Shawn.Utils and Dragablz are git submodules (VShawn/Shawn.Utils and 1Remote/Dragablz). Their compiler
+    warnings cannot be fixed from this repository without forking them, and every build spends part of its
+    annotation budget on them. Silence the codes they raise, for those two trees only - Ui, Tests and
+    everything else keep the full warning set, so a real nullability bug of ours still shows up.
+
+    MSBuild imports this file into every project under the repository root, so the trees are told apart by
+    where the project sits relative to that root.
+  -->
+  <PropertyGroup>
+    <ProjectPathFromRepoRoot>$([MSBuild]::MakeRelative('$(MSBuildThisFileDirectory)', '$(MSBuildProjectDirectory)'))</ProjectPathFromRepoRoot>
+    <IsSubmoduleProject>false</IsSubmoduleProject>
+    <IsSubmoduleProject Condition="$(ProjectPathFromRepoRoot.StartsWith('Shawn.Utils')) Or $(ProjectPathFromRepoRoot.StartsWith('Dragablz'))">true</IsSubmoduleProject>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(IsSubmoduleProject)' == 'true'">
+    <!--
+      CS0612 a use of something the submodule itself marked [Obsolete]; the rest are nullable-analysis
+      warnings: CS8600 null assigned to a non-nullable, CS8602 dereference of a possible null, CS8604 a
+      possible null argument, CS8632 a `?` in a file whose nullable annotation context is off, CS8767 an
+      interface implementation that is less nullable than the interface it implements.
+
+      Only the diagnostics are turned off. `<Nullable>` itself is left alone on purpose: switching those
+      projects to `disable` would strip the nullable annotations from the assemblies Ui compiles against
+      and silently change what the compiler can tell us about our own code.
+    -->
+    <NoWarn>$(NoWarn);CS0612;CS8600;CS8602;CS8604;CS8632;CS8767</NoWarn>
+  </PropertyGroup>
+
+</Project>
