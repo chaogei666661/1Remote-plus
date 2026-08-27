@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Linq;
 using System.Media;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Windows;
 using _1RM.Service;
 using _1RM.Utils.Tracing;
@@ -99,12 +97,10 @@ namespace _1RM
         public static bool ExitingFlag = false;
         public static void Close(int exitCode = 0)
         {
-            // workaround
-            Task.Factory.StartNew(() =>
-            {
-                Thread.Sleep(5 * 1000);
-                Environment.Exit(1);
-            });
+            // The user asked for this, so the failsafe below should end the process with the code that was
+            // asked for rather than reporting a failure. See ShutdownWatchdog for why it exists at all.
+            ShutdownWatchdog.RequestClean();
+            ShutdownWatchdog.Arm(exitCode);
             ExitingFlag = true;
             Application.Current.Dispatcher.Invoke(() =>
             {

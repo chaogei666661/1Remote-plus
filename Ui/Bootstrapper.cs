@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
 using _1RM.Model;
@@ -128,12 +126,11 @@ namespace _1RM
 
         protected override void OnExit(ExitEventArgs e)
         {
-            // workaround
-            Task.Factory.StartNew(() =>
-            {
-                Thread.Sleep(5 * 1000);
-                Environment.Exit(1);
-            });
+            // The teardown below reaches into an ActiveX control, child processes and a tray icon, any of
+            // which can leave a foreground thread behind and keep the process alive with no window left to
+            // close it from. The watchdog is the failsafe for that; it logs what was still running first,
+            // and App.Close has already armed it when the user chose to quit.
+            ShutdownWatchdog.Arm(e.ApplicationExitCode);
             IoC.Get<TaskTrayService>().TaskTrayDispose();
             IoC.Get<SessionControlService>()?.Release();
             IoC.Get<ServerReachabilityService>()?.Dispose();
