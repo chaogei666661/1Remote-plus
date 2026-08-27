@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Windows;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -123,8 +124,11 @@ namespace Tests.View
                 return;
             }
 
+            // Strip XAML comments first. MessageBoxPageView.xaml documents the old bug with the exact
+            // markup in a comment, and a raw substring search treated that as a live binding.
+            var comment = new Regex(@"<!--.*?-->", RegexOptions.Singleline);
             var offenders = Directory.EnumerateFiles(ui, "*.xaml", SearchOption.AllDirectories)
-                .Where(f => File.ReadAllText(f).Contains("{Binding Template, Source="))
+                .Where(f => comment.Replace(File.ReadAllText(f), "").Contains("{Binding Template, Source="))
                 .Select(f => Path.GetFileName(f))
                 .ToArray();
 
