@@ -4,6 +4,7 @@ using Newtonsoft.Json;
 using System.ComponentModel;
 using _1RM.Service;
 using Shawn.Utils;
+
 namespace _1RM.Model.Protocol.Base
 {
     public abstract class ProtocolBaseWithAddressPort : ProtocolBase

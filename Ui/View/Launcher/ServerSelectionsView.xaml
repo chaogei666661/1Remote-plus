@@ -203,7 +203,7 @@
 
         </ResourceDictionary>
     </UserControl.Resources>
-    <Grid Background="{DynamicResource PrimaryMidBrush}">
+    <Grid Background="Transparent">
 
         <!--servers list title-->
         <Grid>
@@ -232,7 +232,7 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="model:TagFilter">
-                                <Border VerticalAlignment="Center" Background="{DynamicResource AccentMidBrush}" CornerRadius="5" Margin="3 0">
+                                <Border VerticalAlignment="Center" Background="{DynamicResource AccentGlassBrush}" CornerRadius="5" Margin="3 0">
                                     <Grid ToolTip="{Binding TagName}">
                                         <TextBlock Text="{Binding TagName}" 
                                                    Foreground="{DynamicResource AccentTextBrush}" 
@@ -282,13 +282,22 @@
 
 
         <!--actions of selected server-->
-        <Grid Name="GridActionsList" Visibility="Hidden" Background="{DynamicResource PrimaryMidBrush}">
+        <!-- An overlay that has to hide the server list underneath it, so it takes the card's own fill
+             rather than a tint: the launcher window carries no backdrop for a translucent layer to sit in,
+             and at the panel alpha the rows it is meant to replace showed through it. -->
+        <Grid Name="GridActionsList" Visibility="Hidden" Background="{DynamicResource SolidPanelBrush}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"></RowDefinition>
                 <RowDefinition Height="*"></RowDefinition>
             </Grid.RowDefinitions>
             <Grid Width="{x:Static view:LauncherWindowViewModel.LAUNCHER_LIST_AREA_WIDTH}" 
                   Height="{x:Static view:LauncherWindowViewModel.LAUNCHER_GRID_KEYWORD_HEIGHT}">
+                <!-- the same header band the search row gets, so switching into the action list does not
+                     flatten the top of the card -->
+                <Border IsHitTestVisible="False"
+                        Background="{DynamicResource TitleBarGlassBrush}"
+                        BorderThickness="0 0 0 1"
+                        BorderBrush="{DynamicResource CardStrokeBrush}" />
                 <Grid VerticalAlignment="Center">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="40"></ColumnDefinition>
@@ -297,8 +306,8 @@
                         <ColumnDefinition Width="*"></ColumnDefinition>
                     </Grid.ColumnDefinitions>
 
-                    <Grid Grid.Row="0" Grid.Column="0" Background="{DynamicResource PrimaryMidBrush}" MouseDown="ButtonActionBack_OnMouseDown">
-                        <Path Margin="2" Fill="{DynamicResource PrimaryLightBrush}" Height="25" Data="F1 M 16.591797 2.431641 L 9.023438 10 L 16.591797 17.568359 L 14.238281 19.931641 L 4.306641 10 L 14.238281 0.068359 L 16.591797 2.431641 Z " Stretch="Uniform"></Path>
+                    <Grid Grid.Row="0" Grid.Column="0" Background="Transparent" MouseDown="ButtonActionBack_OnMouseDown">
+                        <Path Margin="2" Fill="{DynamicResource PrimaryTextBrush}" Height="25" Data="F1 M 16.591797 2.431641 L 9.023438 10 L 16.591797 17.568359 L 14.238281 19.931641 L 4.306641 10 L 14.238281 0.068359 L 16.591797 2.431641 Z " Stretch="Uniform"></Path>
                     </Grid>
 
                     <Grid Grid.Row="0" Grid.Column="1">

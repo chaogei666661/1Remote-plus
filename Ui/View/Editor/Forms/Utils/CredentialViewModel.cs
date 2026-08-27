@@ -1,16 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using _1RM.Model.Protocol.Base;
 using _1RM.Service;
+using _1RM.Service.DataSource.DAO;
 using _1RM.Utils;
 using _1RM.Utils.ExternalSecret;
 using _1RM.View.Editor.Forms.AlternativeCredential;
 using _1RM.View.Utils;
 using Shawn.Utils.Wpf;
 using Shawn.Utils.Wpf.FileSystem;
-using static Microsoft.WindowsAPICodePack.Shell.PropertySystem.SystemProperties.System;
 
 namespace _1RM.View.Editor.Forms.Utils;
 
@@ -33,7 +34,10 @@ public class CredentialViewModel : NotifyPropertyChangedBaseScreen
             RaisePropertyChanged(nameof(IsPasswordExternal));
             ExternalSecretResult = "";
         };
-        var credentials = protocol.DataSource?.GetCredentials(true)?.ToList() ?? new List<Credential>();
+        // Use the cache. GetCredentials(true) is a forced round trip and this constructor runs on the
+        // dispatcher when the server editor opens — against a remote source that froze the hosted
+        // sessions as well. The reload timer keeps CachedCredentials current.
+        var credentials = protocol.DataSource?.GetCredentials(false)?.ToList() ?? new List<Credential>();
         if (credentials.Any())
         {
             if (protocol.ShowPasswordInput() && protocol.ShowPrivateKeyInput())
@@ -237,9 +241,18 @@ public class CredentialViewModel : NotifyPropertyChangedBaseScreen
                     RequirePassword = New.ShowPasswordInput(),
                     RequirePrivateKey = New.ShowPrivateKeyInput(),
                 };
-                vm.OnSave += () =>
+                vm.OnSave += async () =>
                 {
-                    var ret = source.Database_InsertCredential(vm.New);
+                    Result ret;
+                    try
+                    {
+                        ret = await System.Threading.Tasks.Task.Run(() => source.Database_InsertCredential(vm.New));
+                    }
+                    catch (Exception e)
+                    {
+                        MessageBoxHelper.ErrorAlert(e.Message);
+                        return false;
+                    }
                     if (ret.IsSuccess)
                     {
                         Credentials.Add(vm.New);

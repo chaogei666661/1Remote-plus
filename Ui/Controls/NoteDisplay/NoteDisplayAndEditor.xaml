@@ -14,8 +14,13 @@
         <CornerRadius x:Key="LauncherOutlineCornerRadiusObj" TopLeft="{StaticResource LauncherOutlineCornerRadius}" TopRight="{StaticResource LauncherOutlineCornerRadius}" BottomLeft="{StaticResource LauncherOutlineCornerRadius}" BottomRight="{StaticResource LauncherOutlineCornerRadius}"></CornerRadius>
     </UserControl.Resources>
 
+    <!-- One fill for the whole card, taken from CardBackground, so the two hosts can each ask for what their
+         surface needs. Both currently want the opaque SolidPanelBrush: the note popup floats in its own
+         HWND, and the launcher is on the acrylic denylist, so neither has a backdrop for a tint to sit in.
+         The header and body used to repeat PrimaryMidBrush, which stacked a second slab on top of this one. -->
     <Border Padding="0 " Margin="0" Background="Transparent">
-        <Border CornerRadius="{StaticResource LauncherOutlineCornerRadiusObj}" Background="{DynamicResource PrimaryMidBrush}">
+        <Border CornerRadius="{StaticResource LauncherOutlineCornerRadiusObj}"
+                Background="{Binding CardBackground, RelativeSource={RelativeSource AncestorType=UserControl}}">
             <Grid Name="Main">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"></RowDefinition>
@@ -24,11 +29,13 @@
 
                 <Grid RowSpan="2" PreviewMouseDown="Ignore_OnPreviewMouseDown" PreviewMouseMove="Ignore_OnPreviewMouseMove" Background="Transparent"></Grid>
 
-                <Border Grid.Row="0" Background="{DynamicResource PrimaryMidBrush}" Height="{StaticResource LauncherGridKeywordHeight}"
-                        BorderThickness="0 0 0 1">
-                    <Border.BorderBrush>
-                        <SolidColorBrush Color="{DynamicResource PrimaryTextColor}" Opacity="0.5"></SolidColorBrush>
-                    </Border.BorderBrush>
+                <!-- The same header the launcher card draws over its search row — a falling highlight and a
+                     hairline — so the note reads as a sibling of that card rather than as a different kind
+                     of surface. The divider used to be the text colour at half opacity, which was a hard
+                     rule across the card on every palette. -->
+                <Border Grid.Row="0" Background="{DynamicResource TitleBarGlassBrush}" Height="{StaticResource LauncherGridKeywordHeight}"
+                        BorderThickness="0 0 0 1"
+                        BorderBrush="{DynamicResource CardStrokeBrush}">
                     <Border.CornerRadius>
                         <CornerRadius TopLeft="{StaticResource LauncherOutlineCornerRadius}" TopRight="{StaticResource LauncherOutlineCornerRadius}"></CornerRadius>
                     </Border.CornerRadius>
@@ -78,7 +85,7 @@
                 </Border>
 
 
-                <Border Grid.Row="1" Background="{DynamicResource PrimaryMidBrush}">
+                <Border Grid.Row="1" Background="Transparent">
                     <Border.CornerRadius>
                         <CornerRadius BottomLeft="{StaticResource LauncherOutlineCornerRadius}" BottomRight="{StaticResource LauncherOutlineCornerRadius}"></CornerRadius>
                     </Border.CornerRadius>
@@ -129,7 +136,7 @@
                                         Margin="15 0 0 0"
                                         HorizontalAlignment="Right"
                                         Click="ButtonCancelEdit_OnClick"
-                                        Style="{StaticResource ButtonPrimaryStyle}"
+                                        Style="{StaticResource GlassPanelButtonStyle}"
                                         Content="{DynamicResource Cancel}">
                                 </Button>
                             </StackPanel>

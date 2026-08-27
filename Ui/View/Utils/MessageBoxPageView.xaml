@@ -30,8 +30,8 @@
                     MinWidth="280" MaxWidth="520"
                     CornerRadius="{DynamicResource CardCornerRadius}" 
                     SnapsToDevicePixels="True"
-                    Background="{DynamicResource SolidSurfaceBrush}"
-                    BorderBrush="{DynamicResource CardStrokeBrush}"
+                    Background="{DynamicResource GlassContentBrush}"
+                    BorderBrush="{DynamicResource ContentCardStrokeBrush}"
                     BorderThickness="1">
                 <Border.Effect>
                     <DropShadowEffect BlurRadius="24" ShadowDepth="6" Direction="270" Opacity="0.4" />
@@ -44,8 +44,8 @@
                     </Grid.RowDefinitions>
 
                     <!-- Title Header -->
-                    <Border Background="{DynamicResource LayerFillBrush}"
-                            BorderBrush="{DynamicResource CardStrokeBrush}"
+                    <Border Background="{DynamicResource ContentLayerFillBrush}"
+                            BorderBrush="{DynamicResource ContentCardStrokeBrush}"
                             BorderThickness="0 0 0 1"
                             CornerRadius="9 9 0 0">
                         <Grid Margin="12 0">
@@ -87,8 +87,8 @@
 
                     <!-- Action Buttons -->
                     <Border Grid.Row="2"
-                            Background="{DynamicResource LayerFillBrush}"
-                            BorderBrush="{DynamicResource CardStrokeBrush}"
+                            Background="{DynamicResource ContentLayerFillBrush}"
+                            BorderBrush="{DynamicResource ContentCardStrokeBrush}"
                             BorderThickness="0 1 0 0"
                             Padding="16 10"
                             CornerRadius="0 0 9 9">
@@ -108,22 +108,56 @@
                                             Command="{xaml:Action ButtonClicked}" 
                                             CommandParameter="{Binding Value}">
                                         <Button.Style>
-                                            <Style TargetType="Button" BasedOn="{StaticResource GlassAccentButtonStyle}">
+                                            <!-- Every button starts as the ghost button and only the affirmative one is
+                                                 repainted with the accent. The affirmative button used to be the base style
+                                                 and No/Cancel swapped their Template for GlassGhostButtonStyle's — but that
+                                                 resource is a Style, not a Control, so `{Binding Template, Source=...}`
+                                                 resolved to null and left those buttons with no visual tree at all: a delete
+                                                 confirmation rendered with 是 as its only clickable action. Only the fill,
+                                                 the label and the border change here, so both buttons keep the ghost
+                                                 template and stay visible whatever the palette. -->
+                                            <Style TargetType="Button" BasedOn="{StaticResource GlassGhostButtonStyle}">
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding Value}" Value="{x:Static MessageBoxResult.No}">
-                                                        <Setter Property="Template" Value="{Binding Template, Source={StaticResource GlassGhostButtonStyle}}" />
-                                                        <Setter Property="Background" Value="{DynamicResource LayerFillBrush}" />
-                                                        <Setter Property="Foreground" Value="{DynamicResource BackgroundTextBrush}" />
-                                                        <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeBrush}" />
-                                                        <Setter Property="BorderThickness" Value="1" />
+                                                    <DataTrigger Binding="{Binding Value}" Value="{x:Static MessageBoxResult.Yes}">
+                                                        <Setter Property="Background" Value="{DynamicResource AccentGlassBrush}" />
+                                                        <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}" />
+                                                        <Setter Property="BorderBrush" Value="{DynamicResource AccentMidBrush}" />
                                                     </DataTrigger>
-                                                    <DataTrigger Binding="{Binding Value}" Value="{x:Static MessageBoxResult.Cancel}">
-                                                        <Setter Property="Template" Value="{Binding Template, Source={StaticResource GlassGhostButtonStyle}}" />
-                                                        <Setter Property="Background" Value="{DynamicResource LayerFillBrush}" />
-                                                        <Setter Property="Foreground" Value="{DynamicResource BackgroundTextBrush}" />
-                                                        <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeBrush}" />
-                                                        <Setter Property="BorderThickness" Value="1" />
+                                                    <DataTrigger Binding="{Binding Value}" Value="{x:Static MessageBoxResult.OK}">
+                                                        <Setter Property="Background" Value="{DynamicResource AccentGlassBrush}" />
+                                                        <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}" />
+                                                        <Setter Property="BorderBrush" Value="{DynamicResource AccentMidBrush}" />
                                                     </DataTrigger>
+                                                    <!-- A style trigger outranks the template's own IsMouseOver/IsPressed
+                                                         triggers, so the accent variants need their own hover states. -->
+                                                    <MultiDataTrigger>
+                                                        <MultiDataTrigger.Conditions>
+                                                            <Condition Binding="{Binding Value}" Value="{x:Static MessageBoxResult.Yes}" />
+                                                            <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True" />
+                                                        </MultiDataTrigger.Conditions>
+                                                        <Setter Property="Background" Value="{DynamicResource AccentLightBrush}" />
+                                                    </MultiDataTrigger>
+                                                    <MultiDataTrigger>
+                                                        <MultiDataTrigger.Conditions>
+                                                            <Condition Binding="{Binding Value}" Value="{x:Static MessageBoxResult.OK}" />
+                                                            <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True" />
+                                                        </MultiDataTrigger.Conditions>
+                                                        <Setter Property="Background" Value="{DynamicResource AccentLightBrush}" />
+                                                    </MultiDataTrigger>
+                                                    <MultiDataTrigger>
+                                                        <MultiDataTrigger.Conditions>
+                                                            <Condition Binding="{Binding Value}" Value="{x:Static MessageBoxResult.Yes}" />
+                                                            <Condition Binding="{Binding IsPressed, RelativeSource={RelativeSource Self}}" Value="True" />
+                                                        </MultiDataTrigger.Conditions>
+                                                        <Setter Property="Background" Value="{DynamicResource AccentMidBrush}" />
+                                                    </MultiDataTrigger>
+                                                    <MultiDataTrigger>
+                                                        <MultiDataTrigger.Conditions>
+                                                            <Condition Binding="{Binding Value}" Value="{x:Static MessageBoxResult.OK}" />
+                                                            <Condition Binding="{Binding IsPressed, RelativeSource={RelativeSource Self}}" Value="True" />
+                                                        </MultiDataTrigger.Conditions>
+                                                        <Setter Property="Background" Value="{DynamicResource AccentMidBrush}" />
+                                                    </MultiDataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </Button.Style>

@@ -181,7 +181,9 @@ namespace _1RM.View.Host.ProtocolHosts
         private Timer? _timer;
         private Process? _process;
         private readonly System.Windows.Forms.Panel _panel;
-        private readonly HashSet<IntPtr> _exeHandles = new();
+        private readonly List<IntPtr> _exeHandles = new();
+        private readonly object _exeHandlesLock = new();
+        private IntPtr _lastExeHandle = IntPtr.Zero;
         public readonly string ExeFullName;
         public string ExeArguments { get; init; }
         private readonly Dictionary<string, string> _environmentVariables;
@@ -245,7 +247,7 @@ namespace _1RM.View.Host.ProtocolHosts
             if (_process != null)
             {
                 CleanupClosedHandle();
-                foreach (var exeHandle in _exeHandles)
+                foreach (var exeHandle in CopyExeHandles())
                 {
                     MoveWindow(exeHandle, 0, 0, (int)(_panel.Width), (int)(_panel.Height), true);
                 }
@@ -281,16 +283,31 @@ namespace _1RM.View.Host.ProtocolHosts
         #endregion
 
         /// <summary>
+        /// Snapshot under the lock, then walk the copy. Win32 calls stay outside the lock so a timer
+        /// thread and the dispatcher cannot deadlock on Dispatcher.Invoke while holding it.
+        /// </summary>
+        private IntPtr[] CopyExeHandles()
+        {
+            lock (_exeHandlesLock)
+                return _exeHandles.ToArray();
+        }
+
+        /// <summary>
         /// remove the handles in _exeHandles which is not  window
         /// </summary>
         private void CleanupClosedHandle()
         {
-            foreach (var handle in _exeHandles.ToArray())
+            lock (_exeHandlesLock)
             {
-                if (IsWindow(handle) == false)
+                foreach (var handle in _exeHandles.ToArray())
                 {
-                    SimpleLogHelper.Debug($"_exeHandles remove {handle}");
-                    _exeHandles.Remove(handle);
+                    if (IsWindow(handle) == false)
+                    {
+                        SimpleLogHelper.Debug($"_exeHandles remove {handle}");
+                        _exeHandles.Remove(handle);
+                        if (handle == _lastExeHandle)
+                            _lastExeHandle = _exeHandles.Count > 0 ? _exeHandles[_exeHandles.Count - 1] : IntPtr.Zero;
+                    }
                 }
             }
         }
@@ -303,7 +320,7 @@ namespace _1RM.View.Host.ProtocolHosts
             CleanupClosedHandle();
             Dispatcher.Invoke(() =>
             {
-                foreach (var exeHandle in _exeHandles)
+                foreach (var exeHandle in CopyExeHandles())
                 {
                     // must be set or exe will be shown out of panel
                     SetParent(exeHandle, _panel.Handle);
@@ -343,7 +360,7 @@ namespace _1RM.View.Host.ProtocolHosts
 
         public void ShowWindow(bool isShow)
         {
-            foreach (var exeHandle in _exeHandles)
+            foreach (var exeHandle in CopyExeHandles())
             {
                 ShowWindow(exeHandle, (int)(isShow ? ShowWindowStyles.SW_SHOWMAXIMIZED : ShowWindowStyles.SW_HIDE));
             }
@@ -491,6 +508,7 @@ namespace _1RM.View.Host.ProtocolHosts
             _timer = new Timer { Interval = 100, AutoReset = false };
             _timer.Elapsed += (sender, args) =>
             {
+                if (_disposed) return;
                 if (_process == null)
                 {
                     return;
@@ -499,10 +517,23 @@ namespace _1RM.View.Host.ProtocolHosts
                 try
                 {
                     _process.Refresh();
-                    if (_process.MainWindowHandle != IntPtr.Zero
-                        && _exeHandles.Add(_process.MainWindowHandle) != false)
+                    var handle = _process.MainWindowHandle;
+                    var added = false;
+                    if (handle != IntPtr.Zero)
                     {
-                        SimpleLogHelper.Debug($"new _process.MainWindowHandle = {_process.MainWindowHandle}");
+                        lock (_exeHandlesLock)
+                        {
+                            if (!_exeHandles.Contains(handle))
+                            {
+                                _exeHandles.Add(handle);
+                                _lastExeHandle = handle;
+                                added = true;
+                            }
+                        }
+                    }
+                    if (added)
+                    {
+                        SimpleLogHelper.Debug($"new _process.MainWindowHandle = {handle}");
                         SetExeWindowStyle();
                     }
                 }
@@ -516,7 +547,14 @@ namespace _1RM.View.Host.ProtocolHosts
                 // session on each call.
                 if (DateTime.Now > endTime)
                     return;
-                _timer?.Start();
+                try
+                {
+                    _timer?.Start();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Disposed after the callback's initial check; teardown is already in progress.
+                }
             };
             _timer.Start();
         }
@@ -547,9 +585,12 @@ namespace _1RM.View.Host.ProtocolHosts
 
         public override IntPtr GetHostHwnd()
         {
-            if (_exeHandles.Count > 0)
-                return _exeHandles.Last();
-            
+            lock (_exeHandlesLock)
+            {
+                if (_exeHandles.Count > 0)
+                    return _lastExeHandle;
+            }
+
             try
             {
                 return _process?.MainWindowHandle ?? IntPtr.Zero;

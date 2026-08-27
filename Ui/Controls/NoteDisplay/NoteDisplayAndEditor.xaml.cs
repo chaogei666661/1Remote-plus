@@ -56,6 +56,18 @@ namespace _1RM.Controls.NoteDisplay
             set => SetValue(CommandOnCloseRequestProperty, value);
         }
 
+        // Not Background: UserControl's own template paints that one, and it would fill the square behind
+        // the rounded card. The default is opaque because the common host is the hover note popup, which is
+        // its own top level window with nothing composited behind it. So is the launcher, which is on the
+        // acrylic denylist, and it asks for the same opaque fill so its two cards read as one surface.
+        public static readonly DependencyProperty CardBackgroundProperty = DependencyProperty.Register(
+            "CardBackground", typeof(System.Windows.Media.Brush), typeof(NoteDisplayAndEditor), new PropertyMetadata(null));
+        public System.Windows.Media.Brush? CardBackground
+        {
+            get => (System.Windows.Media.Brush?)GetValue(CardBackgroundProperty);
+            set => SetValue(CardBackgroundProperty, value);
+        }
+
         public Visibility CloseButtonVisibility { get; set; } = Visibility.Collapsed;
         public Visibility EditButtonVisibility { get; set; } = Visibility.Visible;
         public bool EditEnable { get; set; }
@@ -63,6 +75,11 @@ namespace _1RM.Controls.NoteDisplay
         public NoteDisplayAndEditor()
         {
             InitializeComponent();
+            // Cannot set CardBackground on this file's UserControl root: the XAML compiler looks that
+            // attribute up in the presentation namespace and fails with MC3072. Call sites (the launcher)
+            // can still set the DP; when they don't, the hover popup stays an opaque panel.
+            if (ReadLocalValue(CardBackgroundProperty) == DependencyProperty.UnsetValue)
+                SetResourceReference(CardBackgroundProperty, "SolidPanelBrush");
             Loaded += NoteDisplayAndEditor_Loaded;
         }
 

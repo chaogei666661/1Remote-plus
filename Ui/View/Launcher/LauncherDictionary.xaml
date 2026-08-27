@@ -34,6 +34,12 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+        <!-- Load-bearing, and it has to stay last: TextBoxBaseStyle fills from ContentLayerFillBrush and
+             strokes with ContentCardStrokeBrush, both derived from BackgroundTextColor for content sitting
+             on BackgroundBrush. The launcher card is tinted from PrimaryMid, so that pair drew the search
+             row as a well of the wrong palette family punched into the card. The row is part of the card
+             here — the header band and its hairline are drawn by LauncherWindowView, behind this box. The
+             per-view styles replace this value with the hint VisualBrush while the box is empty. -->
         <Setter Property="Background" Value="Transparent" />
     </Style>
 
@@ -62,7 +68,7 @@
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
                             <Setter Property="Opacity" Value="1" TargetName="GridHighLight" />
-                            <Setter Property="Background" Value="{DynamicResource AccentMidBrush}" TargetName="GridHighLight" />
+                            <Setter Property="Background" Value="{DynamicResource AccentGlassBrush}" TargetName="GridHighLight" />
                             <Setter TargetName="GridColorOnSelected" Property="Visibility" Value="Visible" />
                             <Setter TargetName="GridColor" Property="Visibility" Value="Collapsed" />
                         </Trigger>
@@ -75,13 +81,13 @@
     <Style x:Key="SearchBoxSelectionList" TargetType="{x:Type ListBox}">
         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
-        <Setter Property="Background" Value="{DynamicResource PrimaryMidBrush}" />
+        <Setter Property="Background" Value="Transparent" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type ListBox}">
                     <Border x:Name="Bd" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Background="{TemplateBinding Background}" Padding="0" SnapsToDevicePixels="true">
                         <ScrollViewer Focusable="false" Padding="{TemplateBinding Padding}" 
-                                      Background="{DynamicResource PrimaryMidBrush}"
+                                      Background="Transparent"
                                       attachProperty:VisionElement.ForegroundAccent="{DynamicResource PrimaryTextBrush}"
                                       attachProperty:VisionElement.BackgroundAccent="{DynamicResource PrimaryTextBrush}"
                                       Style="{StaticResource ScrollViewAccentStyle}">
@@ -157,7 +163,7 @@
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
                             <Setter TargetName="GridHighLight" Property="Opacity" Value="1" />
-                            <Setter TargetName="GridHighLight" Property="Background" Value="{DynamicResource AccentMidBrush}"/>
+                            <Setter TargetName="GridHighLight" Property="Background" Value="{DynamicResource AccentGlassBrush}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

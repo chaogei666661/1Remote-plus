@@ -267,6 +267,8 @@ namespace _1RM.Service
 
         public void ApplyTheme(ThemeConfig theme)
         {
+            if (theme == null) return;
+            CurrentTheme = theme;
             const string resourceTypeKey = "__Resource_Type_Key";
             const string resourceTypeValue = "__Resource_Type_Value=theme";
             void SetKey(IDictionary rd, string key, object value)
@@ -359,33 +361,70 @@ namespace _1RM.Service
             setKey(rd, "LayerSelectedBrush", Overlay(onPrimary, 0x2B));
             setKey(rd, "CardStrokeBrush", Overlay(onPrimary, 0x24));
 
+            // The session window is one DWM frost can never reach (AcrylicBehavior's denylist — a hosted
+            // RDP/VNC HWND draws with GDI, which zeroes the alpha byte, and the accent policy then reads
+            // those pixels as fully transparent and blurs the desktop over the session). Its tab strip
+            // therefore has to look like glass on its own: a single flat Layer* tint over PrimaryMid
+            // reads as one more slab of the window fill. A gradient does the work instead — a bright edge at
+            // the very top falling away to almost nothing at the hairline, which is the specular highlight
+            // that makes a sheet read as glass rather than as paint.
+            setKey(rd, "TitleBarGlassBrush", new LinearGradientBrush(new GradientStopCollection
+            {
+                new GradientStop(Color.FromArgb(0x3A, onPrimary.R, onPrimary.G, onPrimary.B), 0.0),
+                new GradientStop(Color.FromArgb(0x22, onPrimary.R, onPrimary.G, onPrimary.B), 0.07),
+                new GradientStop(Color.FromArgb(0x15, onPrimary.R, onPrimary.G, onPrimary.B), 0.55),
+                new GradientStop(Color.FromArgb(0x0E, onPrimary.R, onPrimary.G, onPrimary.B), 1.0),
+            }, new Point(0, 0), new Point(0, 1)));
+
             var onBackground = theme.GetBackgroundTextColor;
             setKey(rd, "ContentLayerFillBrush", Overlay(onBackground, 0x0D));
             setKey(rd, "ContentLayerHoverBrush", Overlay(onBackground, 0x17));
+            setKey(rd, "ContentLayerSelectedBrush", Overlay(onBackground, 0x24));
             setKey(rd, "ContentCardStrokeBrush", Overlay(onBackground, 0x20));
 
             // With the backdrop off every surface stays fully opaque, which is also the fallback when the OS
             // refuses the acrylic call — AcrylicBehavior only overrides WindowBackdropBrush per window once
             // the composition attribute has actually been accepted, so a failure can never leave a window
-            // see-through and unreadable.
-            var alpha = theme.EnableAcrylic ? (byte)Math.Min(255, Math.Max(0, theme.AcrylicOpacity)) : (byte)0xFF;
+            // see-through and unreadable. The same opaque snap applies in a remote session or high contrast:
+            // DWM would otherwise sample the remote framebuffer and GlassPanelBrush at ~70% would wash out
+            // over that unblurred surface.
+            var frost = theme.EnableAcrylic && !AcrylicBehavior.ShouldSkipAcrylic();
+            var alpha = frost ? (byte)Math.Min(255, Math.Max(0, theme.AcrylicOpacity)) : (byte)0xFF;
             var primaryMid = theme.GetPrimaryMidColor;
             var background = theme.GetBackgroundColor;
 
             // The DWM tint is only a light veil that deepens the blur. The visible colour comes from the
             // Glass* brushes layered on top, which keeps the result matching the theme exactly instead of
             // tinting twice and ending up muddy.
-            setKey(rd, "AcrylicTintColor", Color.FromArgb(theme.EnableAcrylic ? (byte)0x40 : (byte)0x00, primaryMid.R, primaryMid.G, primaryMid.B));
+            setKey(rd, "AcrylicTintColor", Color.FromArgb(frost ? (byte)0x40 : (byte)0x00, primaryMid.R, primaryMid.G, primaryMid.B));
             setKey(rd, "WindowBackdropBrush", new SolidColorBrush(primaryMid));
             setKey(rd, "GlassPanelBrush", new SolidColorBrush(Color.FromArgb(alpha, primaryMid.R, primaryMid.G, primaryMid.B)));
             setKey(rd, "GlassContentBrush", new SolidColorBrush(Color.FromArgb(alpha, background.R, background.G, background.B)));
+
+            // Primary action buttons keep the accent colour — that is how a primary action reads — but a
+            // fully opaque accent rectangle on a frosted panel is a brick punched through the glass. Floored
+            // well above the panel alpha, and above the user's slider, because AccentTextBrush has to stay
+            // legible over whatever the desktop happens to be showing behind the blur.
+            // The floor is compared by hand rather than with Math.Max: both operands are bytes, and the
+            // .NET 10 SDK added a Math.Max(byte, byte) overload that makes such a call ambiguous against
+            // Math.Max(int, int).
+            const byte accentFloor = 0xC8;
+            var accentMid = theme.GetAccentMidColor;
+            byte accentAlpha = 0xFF;
+            if (frost)
+                accentAlpha = alpha > accentFloor ? alpha : accentFloor;
+            setKey(rd, "AccentGlassBrush", new SolidColorBrush(Color.FromArgb(accentAlpha, accentMid.R, accentMid.G, accentMid.B)));
 
             // BackgroundBrush deliberately stays opaque. It looks like the one lever that would turn every
             // control translucent at once — BaseStyle's ControlBase hands it to all of them — but the
             // ComboBox template also paints its drop-down popup with {TemplateBinding Background}, so the
             // closed control and the floating list share this single brush. Making it translucent turned
-            // every drop-down see-through and unreadable. Separating the two means editing the templates in
-            // the Shawn.Utils submodule; until then controls stay solid and only surfaces are glass.
+            // every drop-down see-through and unreadable.
+            //
+            // Individual controls are frosted the other way round instead, in Resources/Theme/Glass.xaml:
+            // each style is overridden to fill from the Layer* overlays rather than from this brush, which
+            // leaves anything that really does float in its own HWND — drop-downs, tooltips, completion
+            // popups — still asking for an opaque fill.
             setKey(rd, "SolidSurfaceBrush", new SolidColorBrush(background));
             setKey(rd, "SolidPanelBrush", new SolidColorBrush(primaryMid));
         }

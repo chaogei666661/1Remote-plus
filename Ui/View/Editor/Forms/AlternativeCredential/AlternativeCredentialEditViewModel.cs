@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 using System.Windows;
 using _1RM.Model.Protocol;
 using _1RM.Model.Protocol.Base;
@@ -22,7 +23,7 @@ namespace _1RM.View.Editor.Forms.AlternativeCredential
     {
         public Model.Protocol.Base.Credential New { get; } = new Model.Protocol.Base.Credential();
         private readonly List<string>? _existedNames;
-        public Func<bool>? OnSave { get; set; }
+        public Func<Task<bool>>? OnSave { get; set; }
         public bool RequireHost = false;
         public bool RequirePort = false;
         public bool RequireUserName = false;
@@ -207,21 +208,64 @@ namespace _1RM.View.Editor.Forms.AlternativeCredential
             }
         }
 
+        private bool _isSaving = false;
+        /// <summary>
+        /// True while OnSave is running. Saving a credential is a round trip to the data source, which may
+        /// be a remote database or a file on a network share, so the dialog can stay open for a while with
+        /// a live Save button. CanSave() reports false meanwhile, which greys the button out.
+        /// </summary>
+        public bool IsSaving
+        {
+            get => _isSaving;
+            private set
+            {
+                if (SetAndNotifyIfChanged(ref _isSaving, value))
+                {
+                    // RelayCommand raises CanExecuteChanged through CommandManager.RequerySuggested, so the
+                    // button only re-reads CanSave() once a requery has been asked for.
+                    try
+                    {
+                        System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+                    }
+                    catch
+                    {
+                        // no dispatcher to requery (e.g. under test) - nothing to refresh
+                    }
+                }
+            }
+        }
+
         private RelayCommand? _cmdSave;
         public RelayCommand CmdSave
         {
             get
             {
-                return _cmdSave ??= new RelayCommand((_) =>
+                return _cmdSave ??= new RelayCommand(async (_) =>
                 {
-                    if (!ShowUsername)
-                        New.UserName = "";
-                    if (!ShowPassword || _isUsePrivateKey)
-                        New.Password = "";
-                    if (!ShowPrivateKeyInput || !_isUsePrivateKey)
-                        New.PrivateKeyPath = "";
-                    New.Trim();
-                    if (OnSave?.Invoke() == true)
+                    // The handler is async void, so a second click landing while the first save is still
+                    // awaiting would write the same credential twice. Drop it.
+                    if (IsSaving)
+                        return;
+
+                    IsSaving = true;
+                    bool ok;
+                    try
+                    {
+                        if (!ShowUsername)
+                            New.UserName = "";
+                        if (!ShowPassword || _isUsePrivateKey)
+                            New.Password = "";
+                        if (!ShowPrivateKeyInput || !_isUsePrivateKey)
+                            New.PrivateKeyPath = "";
+                        New.Trim();
+                        var save = OnSave;
+                        ok = save == null || await save();
+                    }
+                    finally
+                    {
+                        IsSaving = false;
+                    }
+                    if (ok)
                         RequestClose(true);
                 }, o => CanSave());
             }
@@ -229,6 +273,8 @@ namespace _1RM.View.Editor.Forms.AlternativeCredential
 
         public bool CanSave()
         {
+            if (IsSaving)
+                return false;
             if (!string.IsNullOrEmpty(this[nameof(Name)])
                 || !string.IsNullOrEmpty(this[nameof(Address)])
                 || !string.IsNullOrEmpty(this[nameof(Port)])

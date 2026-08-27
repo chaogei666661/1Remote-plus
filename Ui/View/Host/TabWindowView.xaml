@@ -9,15 +9,18 @@
                        xmlns:host="clr-namespace:_1RM.View.Host"
                        xmlns:s="https://github.com/canton7/Stylet"
                        xmlns:styles="clr-namespace:Shawn.Utils.WpfResources.Theme.Styles;assembly=Shawn.Utils.WpfResources"
-                       xmlns:theme="clr-namespace:_1RM.Utils.Theme"
                        mc:Ignorable="d"
                        d:DataContext="{d:DesignInstance host:TabWindowViewModel}"
                        ResizeMode="{Binding WindowResizeMode}"
                        BorderThickness="0"
                        BorderBrush="Transparent"
                        Background="{DynamicResource WindowBackdropBrush}"
-                       theme:AcrylicBehavior.IsEnabled="True"
                        Title="{Binding Title}" Height="600" Width="800">
+    <!-- AcrylicBehavior is intentionally omitted, and this type is on its denylist as well. Remote content
+         is a WindowsFormsHost child HWND that paints with GDI, which leaves the alpha byte at zero; the
+         accent policy honours per-pixel alpha across the whole window, so frosting the chrome also blurs
+         the desktop through the session as a white fog. The title strip fakes the material instead — see
+         the Border at the top of the root Grid. -->
     <WindowChrome.WindowChrome>
         <WindowChrome CaptionHeight="0" GlassFrameThickness="1" ResizeBorderThickness="5" UseAeroCaptionButtons="False" />
     </WindowChrome.WindowChrome>
@@ -212,17 +215,26 @@
                                 </DataTrigger>
                                 <Trigger Property="IsSelected" Value="False">
                                     <Setter Property="Background" Value="Transparent" TargetName="DragablzHeaderItemBorder" />
-                                    <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
                                 </Trigger>
                                 <Trigger Property="IsMouseOver" Value="True">
                                     <Setter Property="Background" Value="{DynamicResource LayerHoverBrush}" TargetName="DragablzHeaderItemBorder" />
-                                    <Setter Property="Foreground" Value="{DynamicResource BackgroundTextBrush}" />
                                 </Trigger>
                                 <Trigger Property="IsSelected" Value="True">
                                     <Setter Property="Background" Value="{DynamicResource LayerSelectedBrush}" TargetName="DragablzHeaderItemBorder" />
-                                    <Setter Property="Foreground" Value="{DynamicResource BackgroundTextBrush}" />
-                                    <Setter Property="BorderBrush" TargetName="DragablzHeaderItemBorder" Value="{Binding ColorHex, Converter={StaticResource ConverterColorHexString2Brush}, Mode=OneWay}"/>
+                                    <!-- A tab with no colour of its own used to underline itself in the
+                                         transparent brush the converter returns, so the only thing marking
+                                         the selected tab was a faint fill. -->
+                                    <Setter Property="BorderBrush" TargetName="DragablzHeaderItemBorder" Value="{DynamicResource AccentMidBrush}"/>
                                 </Trigger>
+                                <!-- Declared after the selection trigger so a tab that does carry a colour
+                                     keeps showing it rather than the accent. -->
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding IsSelected, RelativeSource={RelativeSource TemplatedParent}}" Value="True" />
+                                        <Condition Binding="{Binding ColorHex, Converter={StaticResource ConverterColorIsTransparent}}" Value="False" />
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="BorderBrush" TargetName="DragablzHeaderItemBorder" Value="{Binding ColorHex, Converter={StaticResource ConverterColorHexString2Brush}, Mode=OneWay}"/>
+                                </MultiDataTrigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
                     </Setter.Value>
@@ -318,7 +330,7 @@
 
                                 <Button Grid.Column="0" Width="26" Height="22" VerticalAlignment="Center"
                                         Visibility="{Binding SettingsPage.LauncherSettingViewModel.LauncherEnabled, Converter={StaticResource ConverterBool2Visible}}"
-                                        Style="{StaticResource ButtonBarPrimaryStyle}"
+                                        Style="{StaticResource WindowCaptionButtonStyle}"
                                         attachProperty:VisionElement.Opacity="0.6"
                                         attachProperty:VisionElement.OpacityAccent="1"
                                         Margin="4 0"
@@ -434,8 +446,24 @@
     </Window.Resources>
 
     <Grid Background="Transparent">
-        <!-- Title bar acrylic background strip -->
-        <Border Height="{x:Static host:TabWindowView.TITLE_BAR_HEIGHT}" VerticalAlignment="Top" Background="{DynamicResource GlassPanelBrush}" />
+        <!--
+            Simulated glass, not DWM frost, and not GlassPanelBrush either.
+
+            This window stays on AcrylicBehavior's denylist: the session below is a WindowsFormsHost child
+            HWND that paints with GDI, GDI leaves the alpha byte at zero, and the accent policy honours
+            per-pixel alpha across the whole window — so the one call that would frost this strip also
+            turns every session pixel into blurred desktop. That is the white fog, and it is a property of
+            the HWND, not of this Border, so no fill here can bring it back.
+
+            With nothing composited behind the window, GlassPanelBrush is PrimaryMid at an alpha over a
+            PrimaryMid body: the same colour, which is why the strip read as one flat slab. A single flat
+            Layer* tint had the same problem one shade lighter. The gradient carries the depth instead —
+            the foreground colour at a bright alpha along the top edge, falling to almost nothing at the
+            hairline the TabablzControl template draws — so the strip reads as a lit sheet on both light
+            and dark palettes. Still one translucent layer per pixel: the tab, hover and caption-button
+            overlays stack on this the way they already did.
+        -->
+        <Border Height="{x:Static host:TabWindowView.TITLE_BAR_HEIGHT}" VerticalAlignment="Top" Background="{DynamicResource TitleBarGlassBrush}" />
 
         <dragablz:TabablzControl x:Name="TabablzControl"
                                  BorderThickness="0"
@@ -478,8 +506,8 @@
                     ToolTip="{DynamicResource send_command_title}"
                     Visibility="{Binding SendCommandVisibility}"
                     Width="42" Height="{x:Static host:TabWindowView.TITLE_BAR_HEIGHT}"
-                    VerticalAlignment="Top" Background="Transparent"
-                    Style="{StaticResource ButtonBarPrimaryStyle}">
+                    VerticalAlignment="Top"
+                    Style="{StaticResource WindowCaptionButtonStyle}">
                 <Path Data="{StaticResource GeometryTerminal}"
                       Height="13" Width="13"
                       Fill="{Binding Foreground, RelativeSource={RelativeSource FindAncestor, AncestorType=Button}}"
@@ -523,10 +551,9 @@
 
             <!-- Fullscreen Button -->
             <Button Command="{Binding CmdHostGoFullScreen}"
-                    Width="42" Height="{x:Static host:TabWindowView.TITLE_BAR_HEIGHT}" VerticalAlignment="Top" Background="Transparent"
-                    >
+                    Width="42" Height="{x:Static host:TabWindowView.TITLE_BAR_HEIGHT}" VerticalAlignment="Top">
                 <Button.Style>
-                    <Style TargetType="Button" BasedOn="{StaticResource ButtonBarPrimaryStyle}">
+                    <Style TargetType="Button" BasedOn="{StaticResource WindowCaptionButtonStyle}">
                         <Setter Property="Visibility" Value="Visible"></Setter>
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding WindowResizeMode}" Value="NoResize">
@@ -546,12 +573,8 @@
             <!-- Close All Button -->
             <Button ToolTip="{DynamicResource 'Close all'}" 
                     Command="{Binding CmdCloseAll}" 
-                    Width="42" Height="{x:Static host:TabWindowView.TITLE_BAR_HEIGHT}" VerticalAlignment="Top" Background="Transparent"
-                    Style="{StaticResource ButtonBarPrimaryStyle}"
-                    attachProperty:VisionElement.ForegroundAccent="White"
-                    attachProperty:VisionElement.BackgroundAccent="#E81123"
-                    attachProperty:VisionElement.ForegroundOnMouseDown="White"
-                    attachProperty:VisionElement.BackgroundOnMouseDown="#C4101E"
+                    Width="42" Height="{x:Static host:TabWindowView.TITLE_BAR_HEIGHT}" VerticalAlignment="Top"
+                    Style="{StaticResource WindowCaptionCloseButtonStyle}"
                     Visibility="{Binding BtnCloseAllVisibility}">
                 <Path Data="{StaticResource GeometryDelete}"
                       Height="12" Width="12"
@@ -560,20 +583,19 @@
 
             <!-- Minimize Button -->
             <Button Command="{Binding CmdGoMinimize}" 
-                    Width="42" Height="{x:Static host:TabWindowView.TITLE_BAR_HEIGHT}" VerticalAlignment="Top" Background="Transparent"
-                    Style="{StaticResource ButtonBarPrimaryStyle}">
+                    Width="42" Height="{x:Static host:TabWindowView.TITLE_BAR_HEIGHT}" VerticalAlignment="Top"
+                    Style="{StaticResource WindowCaptionButtonStyle}">
                 <Rectangle Width="10" Height="1" Fill="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType=Button}, Path=Foreground}" />
             </Button>
 
             <!-- Maximize Button -->
             <Button Command="{Binding CmdGoMaximize}"
-                    Width="42" Height="{x:Static host:TabWindowView.TITLE_BAR_HEIGHT}" VerticalAlignment="Top" Background="Transparent"
-                    >
+                    Width="42" Height="{x:Static host:TabWindowView.TITLE_BAR_HEIGHT}" VerticalAlignment="Top">
                 <Button.InputBindings>
                     <MouseBinding Gesture="RightClick" Command="{Binding CmdGoMaximizeF11}" />
                 </Button.InputBindings>
                 <Button.Style>
-                    <Style TargetType="Button" BasedOn="{StaticResource ButtonBarPrimaryStyle}">
+                    <Style TargetType="Button" BasedOn="{StaticResource WindowCaptionButtonStyle}">
                         <Setter Property="Visibility" Value="Visible"></Setter>
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding WindowResizeMode}" Value="NoResize">
@@ -620,13 +642,9 @@
 
             <!-- Close Button -->
             <Button ToolTip="{DynamicResource Close}" 
-                    Width="46" Height="{x:Static host:TabWindowView.TITLE_BAR_HEIGHT}" VerticalAlignment="Top" Background="Transparent"
+                    Width="46" Height="{x:Static host:TabWindowView.TITLE_BAR_HEIGHT}" VerticalAlignment="Top"
                     Command="{Binding CmdClose}" 
-                    Style="{StaticResource ButtonBarPrimaryStyle}"
-                    attachProperty:VisionElement.ForegroundAccent="White"
-                    attachProperty:VisionElement.BackgroundAccent="#E81123"
-                    attachProperty:VisionElement.ForegroundOnMouseDown="White"
-                    attachProperty:VisionElement.BackgroundOnMouseDown="#C4101E">
+                    Style="{StaticResource WindowCaptionCloseButtonStyle}">
                 <Path Height="10" Width="10"
                       Fill="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType=Button}, Path=Foreground}"
                       Data="{StaticResource GeometryCloseCross}"

@@ -33,7 +33,9 @@
             <Border Margin="1"
                     CornerRadius="{StaticResource DefaultCornerRadius}" 
                     SnapsToDevicePixels="True"
-                    Background="{DynamicResource BackgroundBrush}"></Border>
+                    Background="{DynamicResource GlassContentBrush}"
+                    BorderBrush="{DynamicResource ContentCardStrokeBrush}"
+                    BorderThickness="1"></Border>
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="6"/>
@@ -51,7 +53,7 @@
 
 
                 <!--TITLE-->
-                <Border Background="{DynamicResource AccentMidBrush}" Grid.ColumnSpan="3" ClipToBounds="True">
+                <Border Background="{DynamicResource AccentGlassBrush}" Grid.ColumnSpan="3" ClipToBounds="True">
                     <Border.CornerRadius>
                         <CornerRadius TopLeft="{StaticResource DefaultCornerRadiusValue}" TopRight="{StaticResource DefaultCornerRadiusValue}"></CornerRadius>
                     </Border.CornerRadius>

@@ -248,6 +248,19 @@ jobs:
           dest: ${{needs.JobBuild.outputs.artifact_net9xsc}}.zip
 
       # make release
+      - name: Generate release notes from git log
+        id: notes
+        shell: bash
+        run: |
+          NOTES="$(mktemp)"
+          trap 'rm -f "$NOTES"' EXIT
+          bash .github/scripts/release-notes.sh > "$NOTES"
+          {
+            echo 'body<<NOTES_EOF'
+            cat "$NOTES"
+            echo 'NOTES_EOF'
+          } >> "$GITHUB_OUTPUT"
+
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
@@ -255,7 +268,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref_name }}
+          # Bare tag, no "Release " prefix: every release up to v1.3.0.9-beta was titled after its tag,
+          # because changelogithub renamed them on the way out. Now that it is gone, the title this step
+          # sets is the one that sticks, so it has to match.
+          release_name: ${{ github.ref_name }}
+          body: ${{ steps.notes.outputs.body }}
           draft: false
           prerelease: false
 
@@ -301,16 +318,6 @@ jobs:
           asset_path: ${{needs.JobBuild.outputs.artifact_net9xsc}}.zip
           asset_name: ${{needs.JobBuild.outputs.artifact_net9xsc}}.zip
           asset_content_type: application/zip
-
-      # set changelogs
-      - uses: actions/setup-node@v4
-        with:
-          registry-url: https://registry.npmjs.org/
-          node-version: lts/*
-
-      - run: npx changelogithub #--draft #--prerelease # or changelogithub@0.12 if ensure the stable result
-        env:
-          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
 
   PreRelease:
     name: pre-release publish
@@ -377,6 +384,19 @@ jobs:
           dest: ${{needs.JobBuild.outputs.artifact_net9xsc}}.zip
 
       # make release
+      - name: Generate release notes from git log
+        id: notes
+        shell: bash
+        run: |
+          NOTES="$(mktemp)"
+          trap 'rm -f "$NOTES"' EXIT
+          bash .github/scripts/release-notes.sh > "$NOTES"
+          {
+            echo 'body<<NOTES_EOF'
+            cat "$NOTES"
+            echo 'NOTES_EOF'
+          } >> "$GITHUB_OUTPUT"
+
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
@@ -384,7 +404,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref_name }}
+          # see the note on StableRelease: the title has to match the tag-only titles of every release
+          # published while changelogithub was still overwriting them
+          release_name: ${{ github.ref_name }}
+          body: ${{ steps.notes.outputs.body }}
           draft: false
           prerelease: true
 
@@ -426,16 +449,6 @@ jobs:
           asset_path: ${{needs.JobBuild.outputs.artifact_net9xsc}}.zip
           asset_name: ${{needs.JobBuild.outputs.artifact_net9xsc}}.zip
           asset_content_type: application/zip
-
-      # set changelogs
-      - uses: actions/setup-node@v4
-        with:
-          registry-url: https://registry.npmjs.org/
-          node-version: lts/*
-
-      - run: npx changelogithub --prerelease #--draft #--prerelease # or changelogithub@0.12 if ensure the stable result
-        env:
-          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
 
   # publish nightly build
   NightlyRelease:

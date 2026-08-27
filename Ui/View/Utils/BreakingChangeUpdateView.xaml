@@ -17,7 +17,7 @@
                   SizeToContent="WidthAndHeight">
     <Grid Background="Transparent">
         <Grid Background="Transparent" Margin="15">
-            <Border Background="{DynamicResource PrimaryMidBrush}" BorderBrush="{DynamicResource DefaultBorderBrush}" BorderThickness="1"
+            <Border Background="{DynamicResource GlassPanelBrush}" BorderBrush="{DynamicResource DefaultBorderBrush}" BorderThickness="1"
                     VerticalAlignment="Center" HorizontalAlignment="Center" Width="600" CornerRadius="15">
                 <Border.Effect>
                     <DropShadowEffect BlurRadius="10" Opacity="0.8" ></DropShadowEffect>
@@ -44,7 +44,7 @@
 
 
                     <StackPanel Margin="0 15 " VerticalAlignment="Bottom">
-                        <Button Command="{Binding CmdClose}" Content="{DynamicResource Dismiss}" Style="{StaticResource ButtonPrimaryStyle}"></Button>
+                        <Button Command="{Binding CmdClose}" Content="{DynamicResource Dismiss}" Style="{StaticResource GlassPanelButtonStyle}"></Button>
                     </StackPanel>
                 </StackPanel>
             </Border>

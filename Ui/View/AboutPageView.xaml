@@ -18,7 +18,7 @@
                          d:DataContext="{d:DesignInstance view:AboutPageViewModel}"
                          >
 
-    <Border Background="{DynamicResource SolidSurfaceBrush}"
+    <Border Background="{DynamicResource GlassPanelBrush}"
             BorderBrush="{DynamicResource CardStrokeBrush}"
             BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" ClipToBounds="True">
         <Grid Margin="10">
@@ -212,7 +212,7 @@
                                 </StackPanel>
                                 <TextBlock Margin="0 12 0 0" Opacity="0.7" TextWrapping="Wrap"
                                            Foreground="{DynamicResource PrimaryTextBrush}"
-                                           Text="This is a modified build of 1Remote, forked from the upstream project by Shawn Veck and maintained by chaogei since 2026. Licensed under GPL-3.0." />
+                                           Text="1Remote Plus is a modified build of 1Remote, forked from the upstream project by Shawn Veck and maintained by chaogei since 2026. Licensed under GPL-3.0." />
                             </StackPanel>
                         </StackPanel>
                         <Grid Grid.Column="1">
@@ -339,7 +339,7 @@
             <Grid VerticalAlignment="Bottom" Height="{StaticResource BottomHeight}">
                 <Border BorderThickness="0 1 0 0" BorderBrush="{DynamicResource CardStrokeBrush}" Background="{DynamicResource LayerFillBrush}"></Border>
                 <Button MinWidth="90" Height="30" Content="{DynamicResource Close}" 
-                        Style="{StaticResource GlassGhostButtonStyle}"
+                        Style="{StaticResource GlassPanelButtonStyle}"
                         HorizontalAlignment="Right" Margin="0 0 16 0"
                         Command="{Binding CmdClose}"></Button>
             </Grid>
