@@ -170,7 +170,8 @@ namespace _1RM.Service
                     var pvm = new PasswordVaultManagerFileSystem(AppPathHelper.Instance.LocalityDirPath);
                     if (enable == false)
                     {
-                        pvm.Add(key, value);
+                        // awaited, so success is only reported once the value really is on disk
+                        await pvm.AddAsync(key, value);
                         success = true;
                     }
                     else
@@ -227,7 +228,7 @@ namespace _1RM.Service
             try
             {
                 var pvm = new PasswordVaultManagerFileSystem(AppPathHelper.Instance.LocalityDirPath);
-                if (pvm.Retrieve(key) is { } txt)
+                if (await pvm.RetrieveAsync(key) is { } txt)
                 {
                     var value = await DataProtectionForLocal.Unprotect(txt);
                     return value != "0";

@@ -9,6 +9,10 @@ namespace _1RM.Utils.WindowsSdk
     /// <summary>
     /// encrypt string to base64, it can be decrypt only by the same local user, it can't be decrypt by other user or other machine
     /// REF: https://learn.microsoft.com/en-us/uwp/api/windows.security.cryptography.dataprotection.dataprotectionprovider?view=winrt-22621
+    ///
+    /// The awaits here are ConfigureAwait(false) deliberately: callers that have to be synchronous block on
+    /// these tasks, and a continuation queued back onto the UI thread would then be waiting for the very
+    /// thread that is waiting for it.
     /// </summary>
     public static class DataProtectionForLocal
     {
@@ -29,7 +33,7 @@ namespace _1RM.Utils.WindowsSdk
                 var buffMsg = CryptographicBuffer.ConvertStringToBinary(strMsg, encoding);
 
                 // Encrypt the message.
-                var buffProtected = await provider.ProtectAsync(buffMsg);
+                var buffProtected = await provider.ProtectAsync(buffMsg).AsTask().ConfigureAwait(false);
 
                 // Execution of the Protect function resumes here
                 // after the awaited task (Provider.Protect) completes.
@@ -53,7 +57,7 @@ namespace _1RM.Utils.WindowsSdk
                 var provider = new DataProtectionProvider();
 
                 // Decrypt the protected message specified on input.
-                var buffUnprotected = await provider.UnprotectAsync(buffProtected);
+                var buffUnprotected = await provider.UnprotectAsync(buffProtected).AsTask().ConfigureAwait(false);
 
                 // Execution of the Unprotect method resumes here
                 // after the awaited task (Provider.UnprotectAsync) completes
@@ -79,7 +83,7 @@ namespace _1RM.Utils.WindowsSdk
                 var buffProtected = CryptographicBuffer.DecodeFromBase64String(base64);
                 if (buffProtected == null)
                     return null;
-                return await Unprotect(buffProtected, encoding);
+                return await Unprotect(buffProtected, encoding).ConfigureAwait(false);
             }
             catch (Exception)
             {
