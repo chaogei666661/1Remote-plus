@@ -27,12 +27,15 @@ namespace _1RM.Service
         #region Open Via Different
         private static void ConnectRdpByMstsc(in RDP rdp)
         {
-            var tmp = Path.GetTempPath();
+            // The .rdp holds the whole session configuration, so it goes into a directory of its own with an
+            // unguessable name rather than under %TEMP% as "<server>_<port>_<hash>.rdp", and it is removed
+            // when mstsc exits rather than only by a timer that a crash can outlive.
+            var dir = SessionTempFile.CreateDirectory("rdp");
             var rdpFileName = $"{rdp.DisplayName}_{rdp.Port}_{MD5Helper.GetMd5Hash16BitString(rdp.UserName)}";
             var invalid = new string(Path.GetInvalidFileNameChars()) +
                           new string(Path.GetInvalidPathChars());
             rdpFileName = invalid.Aggregate(rdpFileName, (current, c) => current.Replace(c.ToString(), ""));
-            var rdpFile = Path.Combine(tmp, rdpFileName + ".rdp");
+            var rdpFile = Path.Combine(dir, rdpFileName + ".rdp");
             var text = rdp.ToRdpConfig().ToString();
 
             // write a .rdp file for mstsc.exe
@@ -41,21 +44,6 @@ namespace _1RM.Service
                     File.WriteAllText(rdpFile, text);
                 }, actionOnError: exception => UnifyTracing.Error(exception)))
             {
-                // delete tmp rdp file, ETA 30s
-                Task.Factory.StartNew(() =>
-                {
-                    try
-                    {
-                        Thread.Sleep(1000 * 30);
-                        if (File.Exists(rdpFile))
-                            File.Delete(rdpFile);
-                    }
-                    catch (Exception e)
-                    {
-                        SimpleLogHelper.Error(e);
-                    }
-                });
-
                 try
                 {
                     string admin = rdp.IsAdministrativePurposes == true ? " /admin " : "";
@@ -71,22 +59,31 @@ namespace _1RM.Service
                     AddUnHostingWatch(p, protocol);
                     p.EnableRaisingEvents = true;
                     p.Start();
+                    // mstsc reads the file at start-up, so the 30s backstop is what actually removes it in
+                    // the common case; the Exited handler covers a session that ends before that.
+                    SessionTempFile.DeleteWhenExited(p, dir);
                 }
                 catch (Exception e)
                 {
+                    SessionTempFile.TryDelete(dir);
                     UnifyTracing.Error(e);
                     MessageBoxHelper.ErrorAlert(e.Message + "\r\n while Run mstsc.exe");
                 }
+            }
+            else
+            {
+                SessionTempFile.TryDelete(dir);
             }
         }
 
         private static void ConnectRemoteApp(in RdpApp remoteApp)
         {
-            var tmp = Path.GetTempPath();
+            // see ConnectRdpByMstsc: one directory per invocation, not a name derived from the server
+            var dir = SessionTempFile.CreateDirectory("remoteapp");
             var rdpFileName = $"{remoteApp.DisplayName}_{remoteApp.Port}_{remoteApp.UserName}";
             var invalid = new string(Path.GetInvalidFileNameChars()) + new string(Path.GetInvalidPathChars());
             rdpFileName = invalid.Aggregate(rdpFileName, (current, c) => current.Replace(c.ToString(), ""));
-            var rdpFile = Path.Combine(tmp, rdpFileName + ".rdp");
+            var rdpFile = Path.Combine(dir, rdpFileName + ".rdp");
 
             // write a .rdp file for mstsc.exet.Replace(c.ToString(), ""));
             var text = remoteApp.ToRdpConfig().ToString();
@@ -114,21 +111,14 @@ namespace _1RM.Service
                 p.StandardInput.WriteLine($"mstsc \"" + rdpFile + "\"");
                 p.StandardInput.WriteLine("exit");
 
-                // delete tmp rdp file, ETA 10s
-                var t = new Task(async () =>
-                {
-                    try
-                    {
-                        await Task.Delay(1000 * 10);
-                        if (File.Exists(rdpFile))
-                            File.Delete(rdpFile);
-                    }
-                    catch (Exception e)
-                    {
-                        SimpleLogHelper.Error(e);
-                    }
-                });
-                t.Start();
+                // The process here is the cmd.exe that launches mstsc and exits immediately, so its Exited
+                // event would fire before mstsc has read the file. A short delay is the only signal
+                // available; ten seconds is what it has always been.
+                SessionTempFile.DeleteAfter(dir, 10);
+            }
+            else
+            {
+                SessionTempFile.TryDelete(dir);
             }
         }
 

@@ -510,23 +510,13 @@ exec $SHELL # to keep putty alive
                 // if private key is not all ascii, copy it to temp file
                 if (pw.IsPrivateKeyAllAscii() == false && File.Exists(pw.PrivateKey))
                 {
-                    sshPrivateKeyPath = Path.Combine(Path.GetTempPath(), new FileInfo(pw.PrivateKey).Name);
+                    // Its own directory rather than %TEMP%\<key name>: the copy is a usable private key and
+                    // the old name was both predictable and shared between sessions. PuTTY reads it while
+                    // starting, so the delay is only there to be sure it has.
+                    var dir = SessionTempFile.CreateDirectory("key");
+                    sshPrivateKeyPath = Path.Combine(dir, new FileInfo(pw.PrivateKey).Name);
                     File.Copy(pw.PrivateKey, sshPrivateKeyPath, true);
-                    var autoDelTask = new Task(() =>
-                    {
-                        Thread.Sleep(30 * 1000);
-                        try
-                        {
-                            if (File.Exists(sshPrivateKeyPath))
-                                File.Delete(sshPrivateKeyPath);
-                            SimpleLogHelper.DebugWarning($"SSH KEY {sshPrivateKeyPath} is deleted!");
-                        }
-                        catch
-                        {
-                            // ignored
-                        }
-                    });
-                    autoDelTask.Start();
+                    SessionTempFile.DeleteAfter(dir, autoDeleteSeconds > 0 ? autoDeleteSeconds : 30);
                 }
             }
             return sshPrivateKeyPath;
