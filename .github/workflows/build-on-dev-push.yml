@@ -7,6 +7,11 @@ on:
       - "*main*"
     tags:
       - "*"
+  # PRs never hit the push-to-main path, so without this the new test step would only run after merge.
+  pull_request:
+    branches:
+      - main
+      - master
   # lets a build be started from the Actions tab without pushing another commit
   workflow_dispatch:
 jobs:
@@ -16,6 +21,7 @@ jobs:
     name: build_and_release
     runs-on: windows-latest
     if: |
+      github.event_name == 'pull_request' ||
       !contains(github.event.head_commit.message, 'WIP')
 
     env:
@@ -138,19 +144,25 @@ jobs:
       #     path: Ui/bin/Release/net6.0-windows/publish/win-x64
 
       # Publish the application net9.0
+      # PRs only need restore + test; publishing twice on every review would dominate the wall clock
+      # and still not be a release. Push to main/tags keeps the original artifact path.
       - name: Publish the application net9
+        if: github.event_name != 'pull_request'
         run: dotnet publish $env:Main_Project -p:PublishProfile=./Ui/Properties/PublishProfiles/x64-net90.pubxml
       # artifact
       - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
         with:
           name: 1Remote-${{env.BuildVersion}}-net9-x64
           path: Ui/bin/Release/net9.0-windows/publish/win-x64
 
       # Publish the application net9.0
       - name: Publish x64-net90-self-contained
+        if: github.event_name != 'pull_request'
         run: dotnet publish $env:Main_Project -p:PublishProfile=./Ui/Properties/PublishProfiles/x64-net90-self-contained.pubxml
       # artifact
       - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
         with:
           name: 1Remote-${{env.BuildVersion}}-net9-x64-self-contained
           path: Ui/bin/Release/net9.0-windows-self-contained/publish/win-x64

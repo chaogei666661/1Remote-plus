@@ -42,7 +42,9 @@ They run in CI, where the job is on `windows-latest` — that is what item 1 add
   configurations map but do not build it, because the test project only targets net9.
 - `.github/workflows/build-on-dev-push.yml`: `dotnet restore Tests/Tests.csproj` (the existing restore is an
   msbuild restore of `Ui` only) followed by `dotnet test Tests/Tests.csproj -c Release`, placed after restore
-  and before the net9 publish.
+  and before the net9 publish. Parent follow-up: the workflow now also runs on `pull_request` to `main` /
+  `master`. Without that, the new test step would only execute after merge, because `on.push` is limited to
+  those branches. Publish/upload on PRs is skipped so a review build is restore + test only.
 - Same file: `actions/cache@v3` → `@v4`, and `actions/checkout@v3` → `@v4` in `JobBuild`, `StableRelease` and
   `PreRelease`. Nothing else in the workflow was rewritten.
 - `Tests/Tests.csproj` had been left on net6 after `Ui` moved to net9, which stopped it building at all; it
