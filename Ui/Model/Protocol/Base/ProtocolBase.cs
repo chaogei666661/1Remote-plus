@@ -250,16 +250,20 @@ namespace _1RM.Model.Protocol.Base
             set
             {
                 var v = value == "Follow the global settings" ? "" : value;
-                if (SetAndNotifyIfChanged(ref _selectedRunnerName, v))
-                {
-                    var runner = RunnerHelper.GetRunner(IoC.Get<ProtocolConfigurationService>(), this, this.Protocol);
-                    RaisePropertyChanged(nameof(SelectedRunnerIsInternalRunner));
-                }
+                SetAndNotifyIfChanged(ref _selectedRunnerName, v);
             }
         }
 
-        [JsonIgnore] 
-        public bool SelectedRunnerIsInternalRunner => RunnerHelper.GetRunner(IoC.Get<ProtocolConfigurationService>(), this, this.Protocol) is InternalDefaultRunner;
+        /// <summary>
+        /// Whether this server would open in the app's own host rather than in an external program.
+        ///
+        /// It takes the service instead of reaching for it, because a domain object that calls
+        /// <c>IoC.Get</c> cannot be constructed in a test without standing up a container — and the editor,
+        /// which is the only thing that asks, has the service already. The editor form viewmodel exposes the
+        /// no-argument property that XAML binds to.
+        /// </summary>
+        public bool IsSelectedRunnerInternal(ProtocolConfigurationService protocolConfigurationService)
+            => RunnerHelper.GetRunner(protocolConfigurationService, this, this.Protocol) is InternalDefaultRunner;
 
         private bool _trustUnverifiedHost = false;
         /// <summary>

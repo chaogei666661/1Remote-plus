@@ -16,7 +16,7 @@
         <ContentControl s:View.Model="{Binding CredentialViewModel}"></ContentControl>
         <ContentControl s:View.Model="{Binding AlternativeCredentialListViewModel}"></ContentControl>
 
-        <Grid Style="{StaticResource EditorRowGrid}" Visibility="{Binding New.SelectedRunnerIsInternalRunner, Converter={StaticResource ConverterBool2Visible}}">
+        <Grid Style="{StaticResource EditorRowGrid}" Visibility="{Binding SelectedRunnerIsInternalRunner, Converter={StaticResource ConverterBool2Visible}}">
             <StackPanel Orientation="Horizontal">
                 <TextBlock Style="{StaticResource EditorRowGridTitle}" Text="{DynamicResource server_editor_advantage_sftp_startup_path}"></TextBlock>
                 <Grid Style="{StaticResource EditorRowGridInput}">
