@@ -18,7 +18,6 @@ using _1RM.View.Settings.General;
 using _1RM.View.Utils;
 using System.Collections.Generic;
 using _1RM.Utils.PuTTY.Model;
-using _1RM.Utils.PuTTY.Model;
 using _1RM.Utils.Tracing;
 
 namespace _1RM
@@ -47,7 +46,7 @@ namespace _1RM
                         File.WriteAllText(txt, txt);
                         File.Delete(txt);
                     }
-                    catch (Exception e)
+                    catch (Exception)
                     {
                         flag = false;
                     }
@@ -366,7 +365,10 @@ namespace _1RM
 #if NETFRAMEWORK
                 kys.Add($"App start with - Net", $"4.8");
 #else
-                        kys.Add($"App start with - Net", $"6.x");
+                        // Was hard-coded to "6.x" and stayed that way through the move to net9, so every
+                        // report from a modern build was mislabelled. The runtime version is the honest
+                        // answer and needs no editing the next time the target framework moves.
+                        kys.Add($"App start with - Net", $"{Environment.Version}");
 #endif
                         UnifyTracing.TraceSpecial(kys);
                     }
@@ -435,6 +437,36 @@ namespace _1RM
             if (ConfigurationServiceObj.General.ShowRecentlySessionInTray)
                 IoC.Get<TaskTrayService>().ReloadTaskTrayContextMenu();
             IoC.Get<LauncherWindowViewModel>().SetHotKey();
+            WarnAboutPlaceholderSaltOnce();
+        }
+
+        /// <summary>
+        /// A build made without the encryption salt secret — any fork build, and any local build — enciphers
+        /// stored passwords with a constant that is published in this repository. The CI workflow says so in
+        /// a comment nobody downloading a release ever sees, so say it here, once, and leave the standing
+        /// notice on the About page.
+        /// </summary>
+        private static void WarnAboutPlaceholderSaltOnce()
+        {
+            if (!Assert.IsUsingPlaceholderSalt) return;
+            SimpleLogHelper.Warning("This build uses the placeholder encryption salt; stored passwords are not protected from anyone holding this binary.");
+
+            var cfg = ConfigurationServiceObj;
+            if (cfg == null || cfg.Engagement.PlaceholderSaltWarned) return;
+            cfg.Engagement.PlaceholderSaltWarned = true;
+            cfg.Save();
+
+            // Posted rather than shown inline: this runs at the tail of OnLaunch, and a modal here would
+            // hold up the rest of the start-up sequence behind a dialog the user has to read.
+            Stylet.Execute.PostToUIThread(() =>
+            {
+                MessageBoxHelper.Warning(
+                    "This build was compiled without an encryption salt, so it falls back to a constant that is public in the source code. "
+                    + "Passwords it stores can be read by anyone who has the database file and a copy of this program, and it must not be "
+                    + "pointed at a password store created by an official release — that store's secrets would be re-encrypted with the "
+                    + "known key. Build from source with your own salt if you need the stored passwords to be protected.",
+                    title: "Insecure build");
+            });
         }
     }
 }

@@ -99,6 +99,29 @@
 
                                     <TextBlock Text="{Binding CurrentVersionDate}" Margin="0" ToolTip="{x:Static Rm:AppVersion.BuildDate}"></TextBlock>
 
+                                    <!--
+                                        Only visible on a build compiled without the encryption salt secret,
+                                        which is every fork and local build. Nothing else in the app tells the
+                                        user their stored passwords are enciphered with a published constant.
+                                    -->
+                                    <Border MaxWidth="260" Margin="0 10 0 10" Padding="8" CornerRadius="4"
+                                            BorderThickness="1"
+                                            BorderBrush="Red">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <!-- a local Visibility would beat the trigger, so the default lives here -->
+                                                <Setter Property="Visibility" Value="Collapsed"></Setter>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsUsingPlaceholderSalt}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible"></Setter>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <TextBlock TextWrapping="Wrap" Margin="0"
+                                                   Text="This build has no encryption salt of its own and uses a constant published in the source code. Stored passwords are obfuscated, not protected, and this build must not be pointed at a password store created by an official release." />
+                                    </Border>
+
                                     <Grid>
                                         <Grid.Style>
                                             <Style TargetType="Grid" BasedOn="{StaticResource RowGrid}">
