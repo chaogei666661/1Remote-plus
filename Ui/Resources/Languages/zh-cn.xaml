@@ -434,6 +434,8 @@
     <s:String x:Key="webdav_title">异地备份（WebDAV）</s:String>
     <s:String x:Key="webdav_hint">把同样的备份包上传到 WebDAV 目录——Nextcloud、ownCloud、群晖以及多数 NAS 都支持。备份包中的配置未加密，请使用 HTTPS 地址和只有你能访问的目录。</s:String>
     <s:String x:Key="webdav_url">目录地址</s:String>
+    <s:String x:Key="webdav_allow_http">允许使用未加密的 http:// 地址</s:String>
+    <s:String x:Key="webdav_http_warning">使用 http 时，用户名和密码会以明文发送，备份包本身也是——其中包含你的全部配置和凭据数据库。仅在你自己掌控的回环地址或测试环境中使用。</s:String>
     <s:String x:Key="webdav_saved">目的地已保存。</s:String>
     <s:String x:Key="webdav_upload">备份并上传</s:String>
     <s:String x:Key="webdav_refresh">刷新列表</s:String>

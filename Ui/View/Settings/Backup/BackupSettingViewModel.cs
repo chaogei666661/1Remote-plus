@@ -20,6 +20,17 @@ namespace _1RM.View.Settings.Backup
 
         public WebDavConfig WebDav => Configuration.WebDav;
 
+        public BackupSettingViewModel()
+        {
+            // The address box updates on every keystroke, and the "this is not encrypted" warning is only
+            // useful while the address is being typed — waiting for Save would show it after the fact.
+            WebDav.PropertyChanged += (_, _) =>
+            {
+                RaisePropertyChanged(nameof(WebDavActionsVisibility));
+                RaisePropertyChanged(nameof(PlainHttpVisibility));
+            };
+        }
+
         private string _lastResult = "";
         /// <summary>What the most recent backup or restore did, shown under the buttons.</summary>
         public string LastResult
@@ -120,6 +131,13 @@ namespace _1RM.View.Settings.Backup
         #region WebDAV
 
         public Visibility WebDavActionsVisibility => WebDav.IsUsable ? Visibility.Visible : Visibility.Collapsed;
+
+        /// <summary>
+        /// Shows the http opt-in and its warning, and only for an address that actually is plain http —
+        /// there is no reason to put the question in front of somebody who typed https.
+        /// </summary>
+        public Visibility PlainHttpVisibility =>
+            WebDav.Url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ? Visibility.Visible : Visibility.Collapsed;
 
         private RelayCommand? _cmdSaveWebDav;
         public RelayCommand CmdSaveWebDav => _cmdSaveWebDav ??= new RelayCommand(_ =>

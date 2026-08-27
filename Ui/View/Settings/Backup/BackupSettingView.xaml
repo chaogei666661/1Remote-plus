@@ -72,6 +72,21 @@
                             </StackPanel>
                         </Grid>
 
+                        <!--
+                            Only appears for an http:// address. The client sends Basic auth pre-emptively and
+                            the archive is the whole configuration, so this has to be a deliberate choice
+                            rather than something a mistyped scheme quietly turns on.
+                        -->
+                        <StackPanel Visibility="{Binding PlainHttpVisibility}" Margin="0 0 0 8">
+                            <CheckBox Content="{DynamicResource webdav_allow_http}"
+                                      IsChecked="{Binding WebDav.AllowInsecureHttp}" />
+                            <TextBlock Margin="0 6 0 0" TextWrapping="Wrap"
+                                       LineHeight="18"
+                                       FontSize="{DynamicResource GlobalFontSizeSmall}"
+                                       Foreground="Red"
+                                       Text="{DynamicResource webdav_http_warning}" />
+                        </StackPanel>
+
                         <Grid Style="{StaticResource EditorRowGrid}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Style="{StaticResource EditorRowGridTitle}" Text="{DynamicResource User}" />

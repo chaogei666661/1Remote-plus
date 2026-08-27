@@ -434,6 +434,8 @@
     <s:String x:Key="webdav_title">Off-machine copy (WebDAV)</s:String>
     <s:String x:Key="webdav_hint">Upload the same archive to a WebDAV folder — Nextcloud, ownCloud, Synology and most NAS boxes speak it. The archive holds your configuration unencrypted, so use an HTTPS address and a folder only you can read.</s:String>
     <s:String x:Key="webdav_url">Folder URL</s:String>
+    <s:String x:Key="webdav_allow_http">Allow this unencrypted http:// destination</s:String>
+    <s:String x:Key="webdav_http_warning">Over http the user name and password are sent in the clear on every request, and so is the archive — which contains your whole configuration and the credential database. Only do this on a loopback or lab address you control.</s:String>
     <s:String x:Key="webdav_saved">The destination has been saved.</s:String>
     <s:String x:Key="webdav_upload">Back up and upload</s:String>
     <s:String x:Key="webdav_refresh">Refresh list</s:String>
