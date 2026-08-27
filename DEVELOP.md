@@ -118,6 +118,13 @@ encryption salt means for a fork build, what `1Remote.db` does and does not prot
 Hello actually gates, why `cmd://` secret references need a per-machine approval, and why WebDAV backups
 require HTTPS.
 
+### Optional CI secrets
+
+The `GLOBAL_STRING_ENCRYPTION_SLAT` and `SENTRY_IO_DEN` repository secrets are optional: a build without
+them logs a notice, keeps the public placeholder constants in `Ui/Assert.cs`, and therefore ships with
+telemetry inert and with the encryption salt everyone can read — which is why the app warns about it at
+runtime and why such a build must not be pointed at a password store created by an official release.
+
 ### Command line
 
 Build is automated using [Invoke-Build] PowerShell module which is included in the repository, but can be also [installed in the system](https://github.com/nightroman/Invoke-Build#install-as-module).

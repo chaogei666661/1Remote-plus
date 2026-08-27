@@ -153,7 +153,10 @@ jobs:
           )
           foreach ($r in $replacements) {
             if ([string]::IsNullOrWhiteSpace($r.Value)) {
-              Write-Host "::warning::No secret configured for $($r.Pattern), keeping the placeholder."
+              # A notice, not a warning: on a fork these two secrets are expected to be missing, and the
+              # placeholder build is the documented outcome rather than something that needs looking at.
+              # The app itself still says so at runtime. See DEVELOP.md.
+              Write-Host "::notice::No secret configured for $($r.Pattern), keeping the placeholder."
               continue
             }
             ./scripts/Set-Secret.ps1 -filePath .\Ui\Assert.cs -Pattern $r.Pattern -Secret $r.Value
