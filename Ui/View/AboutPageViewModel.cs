@@ -97,6 +97,13 @@ namespace _1RM.View
             _checkUpdateTimer?.Dispose();
         }
 
+        /// <summary>
+        /// Drives the standing notice below the version. A build without the salt secret cannot protect
+        /// anything it stores, and the About page is the one place a user goes to find out what build this
+        /// actually is.
+        /// </summary>
+        public bool IsUsingPlaceholderSalt => Assert.IsUsingPlaceholderSalt;
+
         public string CurrentVersion => AppVersion.Version;
         public string CurrentVersionDate => AppVersion.BuildDate.IndexOf("+", StringComparison.Ordinal) > 0 ? AppVersion.BuildDate.Substring(0, AppVersion.BuildDate.LastIndexOf("+", StringComparison.Ordinal)) : AppVersion.BuildDate;
 

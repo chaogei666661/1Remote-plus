@@ -250,16 +250,20 @@ namespace _1RM.Model.Protocol.Base
             set
             {
                 var v = value == "Follow the global settings" ? "" : value;
-                if (SetAndNotifyIfChanged(ref _selectedRunnerName, v))
-                {
-                    var runner = RunnerHelper.GetRunner(IoC.Get<ProtocolConfigurationService>(), this, this.Protocol);
-                    RaisePropertyChanged(nameof(SelectedRunnerIsInternalRunner));
-                }
+                SetAndNotifyIfChanged(ref _selectedRunnerName, v);
             }
         }
 
-        [JsonIgnore] 
-        public bool SelectedRunnerIsInternalRunner => RunnerHelper.GetRunner(IoC.Get<ProtocolConfigurationService>(), this, this.Protocol) is InternalDefaultRunner;
+        /// <summary>
+        /// Whether this server would open in the app's own host rather than in an external program.
+        ///
+        /// It takes the service instead of reaching for it, because a domain object that calls
+        /// <c>IoC.Get</c> cannot be constructed in a test without standing up a container — and the editor,
+        /// which is the only thing that asks, has the service already. The editor form viewmodel exposes the
+        /// no-argument property that XAML binds to.
+        /// </summary>
+        public bool IsSelectedRunnerInternal(ProtocolConfigurationService protocolConfigurationService)
+            => RunnerHelper.GetRunner(protocolConfigurationService, this, this.Protocol) is InternalDefaultRunner;
 
         private bool _trustUnverifiedHost = false;
         /// <summary>
@@ -363,7 +367,14 @@ namespace _1RM.Model.Protocol.Base
         public abstract double GetListOrder();
 
         /// <summary>
-        /// cation: it is a shallow
+        /// A shallow copy, plus a fresh copy of every reference-typed member that the caller could go on to
+        /// mutate: the editor clones a server, lets the user edit the clone, and only writes it back when the
+        /// dialog is accepted, so anything still shared with the original is edited behind the user's back
+        /// and survives cancelling.
+        ///
+        /// Value types, strings and the read-only <see cref="DataSource"/> back-reference are deliberately
+        /// left aliased. A subclass that adds a mutable reference-typed member has to override this and copy
+        /// it too — <see cref="LocalApp"/> does that for its argument list.
         /// </summary>
         public virtual ProtocolBase Clone()
         {
@@ -383,8 +394,10 @@ namespace _1RM.Model.Protocol.Base
             Debug.Assert(clone != null);
             clone!.Tags = new List<string>(this.Tags);
             clone.TreeNodes = new List<string>(this.TreeNodes);
-            if (this is ProtocolBaseWithAddressPortUserPwd p
-                && clone is ProtocolBaseWithAddressPortUserPwd c)
+            // AlternateCredentials is declared on ProtocolBaseWithAddressPort, not on the ...UserPwd subclass
+            // this used to test for, so Telnet handed its clone the very same collection object.
+            if (this is ProtocolBaseWithAddressPort p
+                && clone is ProtocolBaseWithAddressPort c)
             {
                 c.AlternateCredentials = new(p.AlternateCredentials.Select(x => x.CloneMe()));
             }

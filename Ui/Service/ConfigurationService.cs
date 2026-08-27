@@ -39,6 +39,13 @@ namespace _1RM.Service
         [Newtonsoft.Json.JsonIgnore]
         public VersionHelper.Version BreakingChangeAlertVersion => VersionHelper.Version.FromString(BreakingChangeAlertVersionString);
         public int ConnectCount = 0;
+
+        /// <summary>
+        /// Whether the "this build has the placeholder encryption salt" alert has already been shown once.
+        /// Persisted so a build without the secret warns on the first launch instead of on every one; the
+        /// About page keeps the notice visible afterwards.
+        /// </summary>
+        public bool PlaceholderSaltWarned = false;
     }
     public class GeneralConfig
     {

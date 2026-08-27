@@ -150,7 +150,7 @@
                     </Grid>
                 </StackPanel>
             </Grid>
-            <Grid Style="{StaticResource EditorRowGrid}" Visibility="{Binding New.SelectedRunnerIsInternalRunner, Converter={StaticResource ConverterBool2Visible}}">
+            <Grid Style="{StaticResource EditorRowGrid}" Visibility="{Binding SelectedRunnerIsInternalRunner, Converter={StaticResource ConverterBool2Visible}}">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Style="{StaticResource EditorRowGridTitle}" Text="{DynamicResource server_editor_advantage_ssh_startup_auto_command}"></TextBlock>
                     <Grid Style="{StaticResource EditorRowGridInput}">
@@ -160,7 +160,7 @@
                 </StackPanel>
             </Grid>
 
-            <Grid Style="{StaticResource EditorRowGrid}" Visibility="{Binding New.SelectedRunnerIsInternalRunner, Converter={StaticResource ConverterBool2Visible}}">
+            <Grid Style="{StaticResource EditorRowGrid}" Visibility="{Binding SelectedRunnerIsInternalRunner, Converter={StaticResource ConverterBool2Visible}}">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Style="{StaticResource EditorRowGridTitle}" Text="PuTTY session file"></TextBlock>
                     <Grid Style="{StaticResource EditorRowGridInput}">
@@ -173,7 +173,7 @@
                 </StackPanel>
             </Grid>
 
-            <Grid Style="{StaticResource EditorRowGrid}" Visibility="{Binding New.SelectedRunnerIsInternalRunner, Converter={StaticResource ConverterBool2Visible}}">
+            <Grid Style="{StaticResource EditorRowGrid}" Visibility="{Binding SelectedRunnerIsInternalRunner, Converter={StaticResource ConverterBool2Visible}}">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Style="{StaticResource EditorRowGridTitle}" Text=""></TextBlock>
                     <Grid Style="{StaticResource EditorRowGridInput}">
@@ -183,7 +183,7 @@
             </Grid>
 
             <!-- Forwarding. PuTTY only, so it follows the same visibility rule as the other built-in options. -->
-            <Grid Style="{StaticResource EditorRowGrid}" Visibility="{Binding New.SelectedRunnerIsInternalRunner, Converter={StaticResource ConverterBool2Visible}}">
+            <Grid Style="{StaticResource EditorRowGrid}" Visibility="{Binding SelectedRunnerIsInternalRunner, Converter={StaticResource ConverterBool2Visible}}">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Style="{StaticResource EditorRowGridTitle}" Text="{DynamicResource ssh_port_forwarding}"></TextBlock>

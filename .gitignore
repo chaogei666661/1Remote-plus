@@ -239,11 +239,12 @@ Generated_Code/
 # to a newer Visual Studio version. Backup files are not needed,
 # because we have git ;-)
 _UpgradeReport_Files/
-Backup*/
-# ...but that pattern also matches source folders that happen to be called Backup, and git skips an
-# excluded directory without ever looking inside it - these were being dropped from commits silently.
-!Ui/Service/Backup/
-!Ui/View/Settings/Backup/
+# The converter writes these beside the solution, so they are anchored to the repository root. An
+# unanchored Backup*/ also matched the source folders called Backup - Ui/Service/Backup and
+# Ui/View/Settings/Backup - and git never looks inside a directory it has excluded, so their contents were
+# dropped from commits silently and had to be un-ignored one by one.
+/Backup/
+/Backup[0-9]*/
 UpgradeLog*.XML
 UpgradeLog*.htm
 ServiceFabricBackup/

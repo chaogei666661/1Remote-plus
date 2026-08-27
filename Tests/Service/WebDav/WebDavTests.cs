@@ -12,13 +12,68 @@ namespace Tests.Service.Backup
 
         [DataTestMethod]
         [DataRow("https://cloud.example.com/dav/1Remote", true)]
-        [DataRow("http://nas.local/dav/", true)]
+        [DataRow("http://nas.local/dav/", false)]
         [DataRow("cloud.example.com/dav", false)]
         [DataRow("ftp://cloud.example.com/dav", false)]
         [DataRow("", false)]
-        public void OnlyAnHttpAddressCanBeUsedAsADestination(string url, bool expected)
+        public void OnlyAnHttpsAddressCanBeUsedAsADestination(string url, bool expected)
         {
+            // The upload is the whole configuration including the credential database, and the client sends
+            // Basic auth pre-emptively, so a mistyped scheme must not quietly work.
             Assert.AreEqual(expected, new WebDavConfig { Url = url }.IsUsable);
+        }
+
+        [TestMethod]
+        public void PlainHttpBecomesUsableOnlyWhenItIsExplicitlyAllowed()
+        {
+            var config = new WebDavConfig { Url = "http://nas.local/dav/" };
+            Assert.IsFalse(config.IsUsable);
+            Assert.IsFalse(config.IsInsecure, "nothing is being sent in the clear while the destination is unusable");
+
+            config.AllowInsecureHttp = true;
+
+            Assert.IsTrue(config.IsUsable);
+            Assert.IsTrue(config.IsInsecure);
+        }
+
+        [TestMethod]
+        public void TheHttpOptInDoesNotMakeANonHttpAddressUsable()
+        {
+            var config = new WebDavConfig { Url = "ftp://nas.local/dav/", AllowInsecureHttp = true };
+
+            Assert.IsFalse(config.IsUsable);
+            Assert.IsFalse(config.IsInsecure);
+        }
+
+        [TestMethod]
+        public void AnHttpsDestinationIsNeverReportedAsInsecure()
+        {
+            var config = new WebDavConfig { Url = "https://cloud.example.com/dav", AllowInsecureHttp = true };
+
+            Assert.IsTrue(config.IsUsable);
+            Assert.IsFalse(config.IsInsecure);
+        }
+
+        [TestMethod]
+        public void TheHttpOptInIsRememberedInTheProfile()
+        {
+            var config = new WebDavConfig { Url = "http://nas.local/dav/", AllowInsecureHttp = true };
+
+            var round = JsonConvert.DeserializeObject<WebDavConfig>(JsonConvert.SerializeObject(config))!;
+
+            Assert.IsTrue(round.AllowInsecureHttp);
+            Assert.IsTrue(round.IsUsable);
+        }
+
+        [TestMethod]
+        public void TheHttpOptInIsOffForAConfigurationThatPredatesIt()
+        {
+            // A profile written before the setting existed has no such property, and the safe reading of a
+            // missing opt-in is "not opted in".
+            var round = JsonConvert.DeserializeObject<WebDavConfig>("{\"Url\":\"http://nas.local/dav/\"}")!;
+
+            Assert.IsFalse(round.AllowInsecureHttp);
+            Assert.IsFalse(round.IsUsable);
         }
 
         [TestMethod]

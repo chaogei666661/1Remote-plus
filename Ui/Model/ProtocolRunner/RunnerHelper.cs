@@ -52,7 +52,7 @@ namespace _1RM.Model.ProtocolRunner
         public static void RunWithoutHosting(this Runner runner, ProtocolBase protocol)
         {
             if (runner is not ExternalRunner er) return;
-            var (isOk, exePath, exeArguments, environmentVariables) = er.GetStartInfo(protocol);
+            var (isOk, exePath, exeArguments, environmentVariables, keyDir) = er.GetStartInfo(protocol);
             if (!isOk) return;
 
             var startInfo = new ProcessStartInfo();
@@ -71,16 +71,22 @@ namespace _1RM.Model.ProtocolRunner
             SessionControlService.AddUnHostingWatch(process, protocol);
             process.EnableRaisingEvents = true;
             process.Start();
+            if (keyDir.Length > 0)
+                SessionTempFile.DeleteWhenExited(process, keyDir);
         }
 
 
         /// <summary>
-        /// return (noError?, exePath, exeArguments, environmentVariables)
+        /// return (noError?, exePath, exeArguments, environmentVariables, privateKeyTempDir)
+        ///
+        /// privateKeyTempDir is "" unless a copy of the private key had to be staged; when it is not, the
+        /// caller owns that directory and has to delete it once the program it launched has finished with it.
         /// </summary>
-        private static Tuple<bool, string, string, Dictionary<string, string>> GetStartInfo(this Runner runner, ProtocolBase protocol)
+        private static Tuple<bool, string, string, Dictionary<string, string>, string> GetStartInfo(this Runner runner, ProtocolBase protocol)
         {
             string exePath = "";
             string exeArguments = "";
+            string keyDir = "";
             var environmentVariables = new Dictionary<string, string>();
             if (runner is ExternalRunner er)
             {
@@ -97,22 +103,12 @@ namespace _1RM.Model.ProtocolRunner
                             // if private key is not all ascii, copy it to temp file
                             if (pw?.IsPrivateKeyAllAscii() == false && File.Exists(pw.PrivateKey))
                             {
-                                var pk = Path.Combine(Path.GetTempPath(), new FileInfo(pw.PrivateKey).Name);
+                                // A copy of a private key under its own name in %TEMP% is both guessable and
+                                // only removed by a sleeping task, so it goes into a directory of its own
+                                // that the caller deletes as soon as the program using it is gone.
+                                keyDir = SessionTempFile.CreateDirectory("key");
+                                var pk = Path.Combine(keyDir, new FileInfo(pw.PrivateKey).Name);
                                 File.Copy(pw.PrivateKey, pk, true);
-                                var autoDelTask = new Task(() =>
-                                {
-                                    Thread.Sleep(30 * 1000);
-                                    try
-                                    {
-                                        if (File.Exists(pk))
-                                            File.Delete(pk);
-                                    }
-                                    catch
-                                    {
-                                        // ignored
-                                    }
-                                });
-                                autoDelTask.Start();
                                 pw.PrivateKey = pk;
                             }
                             exeArguments = runnerForSsh.ArgumentsForPrivateKey;
@@ -145,8 +141,9 @@ namespace _1RM.Model.ProtocolRunner
             else
             {
                 SimpleLogHelper.Error($"GetStartInfo: Runner '{runner.Name}' is not supported!");
-                return new Tuple<bool, string, string, Dictionary<string, string>>(false, "", "",
-                    new Dictionary<string, string>());
+                if (keyDir.Length > 0) SessionTempFile.TryDelete(keyDir);
+                return new Tuple<bool, string, string, Dictionary<string, string>, string>(false, "", "",
+                    new Dictionary<string, string>(), "");
             }
 
             // check exe path exists
@@ -154,12 +151,13 @@ namespace _1RM.Model.ProtocolRunner
             if (tmp.Item1 == false)
             {
                 MessageBoxHelper.ErrorAlert($"Exe file '{exePath}' of runner '{runner.Name}' does not existed!");
-                return new Tuple<bool, string, string, Dictionary<string, string>>(false, "", "",
-                    new Dictionary<string, string>());
+                if (keyDir.Length > 0) SessionTempFile.TryDelete(keyDir);
+                return new Tuple<bool, string, string, Dictionary<string, string>, string>(false, "", "",
+                    new Dictionary<string, string>(), "");
             }
             exePath = tmp.Item2;
             exeArguments = OtherNameAttributeExtensions.Replace(protocol, exeArguments);
-            return new Tuple<bool, string, string, Dictionary<string, string>>(true, exePath, exeArguments, environmentVariables);
+            return new Tuple<bool, string, string, Dictionary<string, string>, string>(true, exePath, exeArguments, environmentVariables, keyDir);
         }
 
         public static HostBase GetHost(this Runner runner, ProtocolBase protocol, TabWindowView? tab = null)
@@ -169,20 +167,24 @@ namespace _1RM.Model.ProtocolRunner
             if (runner is ExternalRunner er)
             {
                 // custom runner
-                var (isOk, exePath, exeArguments, environmentVariables) = er.GetStartInfo(protocol);
+                var (isOk, exePath, exeArguments, environmentVariables, keyDir) = er.GetStartInfo(protocol);
                 if (isOk)
                 {
                     var integrateHost = IntegrateHost.Create(protocol, runner, exePath, exeArguments, environmentVariables);
+                    // IntegrateHost owns the process it starts and does not hand it back, so a copied key is
+                    // swept on the backstop timer here. The program has read it long before that.
+                    if (keyDir.Length > 0) SessionTempFile.DeleteAfter(keyDir, 30);
                     return integrateHost;
                 }
             }
             if (runner is InternalExeRunner ir)
             {
                 // default runner
-                var (isOk, exePath, exeArguments, environmentVariables) = ir.GetStartInfo(protocol);
+                var (isOk, exePath, exeArguments, environmentVariables, keyDir) = ir.GetStartInfo(protocol);
                 if (isOk)
                 {
                     var integrateHost = IntegrateHost.Create(protocol, runner, exePath, exeArguments, environmentVariables);
+                    if (keyDir.Length > 0) SessionTempFile.DeleteAfter(keyDir, 30);
                     return integrateHost;
                 }
             }

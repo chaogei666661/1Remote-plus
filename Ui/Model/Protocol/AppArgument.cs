@@ -188,7 +188,13 @@ public class AppArgument : NotifyPropertyChangedBase, ICloneable, IDataErrorInfo
     public object Clone()
     {
         var copy = (AppArgument)MemberwiseClone();
-        copy.Selections = new System.Collections.Generic.Dictionary<string, string>(this.Selections);
+        // Straight into the field, not through the setter: the setter re-picks Value for a selection
+        // argument, so cloning one used to throw away whichever option was chosen. The dictionary it holds
+        // has already been normalised by the setter on the original.
+        copy._selections = new Dictionary<string, string>(this.Selections);
+        // The lazy command captures the instance that created it, so a copy that inherited the original's
+        // command would write the file the user picks back into the original argument.
+        copy._cmdSelectArgumentFile = null;
         return copy;
     }
 

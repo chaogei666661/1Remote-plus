@@ -54,6 +54,12 @@ namespace _1RM.Service
         /// Doing it here rather than at each call site is deliberate: this is the one place a stored
         /// password becomes a usable one, so every protocol gains external secrets at once and none of them
         /// can forget to.
+        ///
+        /// Because this is also the one place a stored command line turns into a running process, the
+        /// approval gate lives inside the resolver rather than here — see
+        /// <see cref="Utils.ExternalSecret.ExternalSecretTrustStore"/>. A reference that has not been
+        /// approved on this machine yields an empty secret, which fails the login the same way a locked
+        /// vault would.
         /// </summary>
         private static string ToUsableSecret(string stored)
         {

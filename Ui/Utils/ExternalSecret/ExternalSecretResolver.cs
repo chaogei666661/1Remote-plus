@@ -44,6 +44,10 @@ namespace _1RM.Utils.ExternalSecret
         /// Returns the secret for a reference, or the value unchanged when it is not one. Never throws:
         /// a vault that is locked or missing must surface as a failed login, not as a crash on the connect
         /// path, which runs for every protocol.
+        ///
+        /// A command that has not been approved on this machine is not run at all — see
+        /// <see cref="ExternalSecretTrustStore"/> for why. The empty string it returns then behaves exactly
+        /// like a vault that refused: the login fails rather than the session crashing.
         /// </summary>
         public static string Resolve(string? value)
         {
@@ -51,6 +55,12 @@ namespace _1RM.Utils.ExternalSecret
 
             var command = CommandOf(value);
             if (command.Length == 0) return "";
+
+            if (!ExternalSecretTrustStore.EnsureApproved(command))
+            {
+                SimpleLogHelper.Warning($"ExternalSecretResolver: '{command}' is not approved on this machine, not running it");
+                return "";
+            }
 
             if (Cache.TryGetValue(command, out var cached))
                 return cached;
@@ -72,6 +82,11 @@ namespace _1RM.Utils.ExternalSecret
         /// <summary>
         /// Runs a reference and reports what happened, for the test button. Unlike <see cref="Resolve"/>
         /// this does not cache, so a fix can be verified without restarting.
+        ///
+        /// Pressing test is the approval: the button sits next to the command, the user is looking at it,
+        /// and asking "may I run this?" about a command somebody just asked to run reads as a bug. So test
+        /// records the approval instead of prompting, and the connect path never has to ask about a command
+        /// that was verified in the editor. Nothing else records approval implicitly.
         /// </summary>
         public static (bool IsSuccess, string Message, int SecretLength) Test(string? value)
         {
@@ -85,9 +100,10 @@ namespace _1RM.Utils.ExternalSecret
             try
             {
                 var secret = Run(command);
-                return secret.Length == 0
-                    ? (false, "the command printed nothing", 0)
-                    : (true, "", secret.Length);
+                if (secret.Length == 0)
+                    return (false, "the command printed nothing", 0);
+                ExternalSecretTrustStore.Approve(command);
+                return (true, "", secret.Length);
             }
             catch (Exception e)
             {

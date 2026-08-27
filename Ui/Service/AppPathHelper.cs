@@ -69,6 +69,12 @@ namespace _1RM.Service
         public string LocalityDirPath => Path.Combine(BaseDirPathForLocality, ".locality");
         /// <summary>Fingerprints of hosts the user has explicitly accepted. See <see cref="HostTrustService"/>.</summary>
         public string HostTrustJsonPath => Path.Combine(BaseDirPathForLocality, ".locality", "known_hosts.json");
+        /// <summary>
+        /// The <c>cmd://</c> command lines the user has agreed to run. Locality, not profile: an approval to
+        /// execute something is about this machine and must not travel with a synced or shared database.
+        /// See <see cref="Utils.ExternalSecret.ExternalSecretTrustStore"/>.
+        /// </summary>
+        public string ExternalSecretTrustJsonPath => Path.Combine(BaseDirPathForLocality, ".locality", "known_commands.json");
         public string LocalityIconDirPath => Path.Combine(BaseDirPathForLocality, ".icons");
         /// <summary>Where recorded terminal output goes when no folder was chosen in the settings.</summary>
         public string SessionLogDirPath => Path.Combine(BaseDirPathForLocality, ".sessionlogs");

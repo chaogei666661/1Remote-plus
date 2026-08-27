@@ -7,6 +7,11 @@ on:
       - "*main*"
     tags:
       - "*"
+  # PRs never hit the push-to-main path, so without this the new test step would only run after merge.
+  pull_request:
+    branches:
+      - main
+      - master
   # lets a build be started from the Actions tab without pushing another commit
   workflow_dispatch:
 jobs:
@@ -16,6 +21,7 @@ jobs:
     name: build_and_release
     runs-on: windows-latest
     if: |
+      github.event_name == 'pull_request' ||
       !contains(github.event.head_commit.message, 'WIP')
 
     env:
@@ -52,7 +58,7 @@ jobs:
       # cache nuget packages: https://github.com/actions/cache
       - name: Cache nuget packages
         id: cache-nuget-packages
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ${{ github.workspace }}\.nuget\packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('Ui/Ui.csproj') }}
@@ -61,7 +67,7 @@ jobs:
 
       - name: Cache nuget packages home # https://github.com/actions/cache
         id: cache-nuget-packages-home
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: C:\Users\runneradmin\.nuget\packages
           key: ${{ runner.os }}-nuget-home-${{ hashFiles('Ui/Ui.csproj') }}
@@ -98,6 +104,18 @@ jobs:
         id: get_version
         run: ./scripts/Get-Version.ps1
 
+      # The restore above is msbuild on Ui only, so the test project has never been restored here and
+      # needs its own pass before it can build.
+      - name: Restore the test project 📦️
+        run: dotnet restore Tests/Tests.csproj
+
+      # Nothing used to run these: the suite existed and a regression in it shipped unnoticed. It goes
+      # before the publish steps so a broken build never becomes a release artifact. The runner is
+      # windows-latest with the same .NET 9 SDK the app needs, so the WPF-flavoured test project builds
+      # and runs here exactly as it does on a developer machine.
+      - name: Run tests 🧪
+        run: dotnet test Tests/Tests.csproj -c Release
+
       # echo ${{env.BuildVersion}} and ${{env.PreRelease}}
       # - name: Echo Version
       #   shell: pwsh
@@ -126,19 +144,25 @@ jobs:
       #     path: Ui/bin/Release/net6.0-windows/publish/win-x64
 
       # Publish the application net9.0
+      # PRs only need restore + test; publishing twice on every review would dominate the wall clock
+      # and still not be a release. Push to main/tags keeps the original artifact path.
       - name: Publish the application net9
+        if: github.event_name != 'pull_request'
         run: dotnet publish $env:Main_Project -p:PublishProfile=./Ui/Properties/PublishProfiles/x64-net90.pubxml
       # artifact
       - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
         with:
           name: 1Remote-${{env.BuildVersion}}-net9-x64
           path: Ui/bin/Release/net9.0-windows/publish/win-x64
 
       # Publish the application net9.0
       - name: Publish x64-net90-self-contained
+        if: github.event_name != 'pull_request'
         run: dotnet publish $env:Main_Project -p:PublishProfile=./Ui/Properties/PublishProfiles/x64-net90-self-contained.pubxml
       # artifact
       - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
         with:
           name: 1Remote-${{env.BuildVersion}}-net9-x64-self-contained
           path: Ui/bin/Release/net9.0-windows-self-contained/publish/win-x64
@@ -175,7 +199,7 @@ jobs:
           echo ${{needs.JobBuild.outputs.PreRelease}}
 
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: recursive
@@ -306,7 +330,7 @@ jobs:
           echo ${{needs.JobBuild.outputs.PreRelease}}
 
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: recursive

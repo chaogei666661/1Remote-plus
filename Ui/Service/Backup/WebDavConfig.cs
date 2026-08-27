@@ -21,7 +21,11 @@ namespace _1RM.Service.Backup
             set
             {
                 if (SetAndNotifyIfChanged(ref _url, value?.Trim() ?? ""))
+                {
                     RaisePropertyChanged(nameof(IsUsable));
+                    RaisePropertyChanged(nameof(IsHttps));
+                    RaisePropertyChanged(nameof(IsInsecure));
+                }
             }
         }
 
@@ -54,9 +58,38 @@ namespace _1RM.Service.Backup
             }
         }
 
+        private bool _allowInsecureHttp;
+        /// <summary>
+        /// Lets a plain <c>http://</c> destination be used. Off by default and deliberately awkward: the
+        /// client sends Basic authentication pre-emptively and the archive it uploads is the entire
+        /// configuration, credential database included, so an http destination puts the password and every
+        /// stored secret on the wire in the clear. The only defensible use is a loopback or lab endpoint.
+        /// </summary>
+        public bool AllowInsecureHttp
+        {
+            get => _allowInsecureHttp;
+            set
+            {
+                if (SetAndNotifyIfChanged(ref _allowInsecureHttp, value))
+                {
+                    RaisePropertyChanged(nameof(IsUsable));
+                    RaisePropertyChanged(nameof(IsInsecure));
+                }
+            }
+        }
+
         [JsonIgnore]
-        public bool IsUsable => Url.StartsWith("http://", System.StringComparison.OrdinalIgnoreCase)
-                                || Url.StartsWith("https://", System.StringComparison.OrdinalIgnoreCase);
+        public bool IsHttps => Url.StartsWith("https://", System.StringComparison.OrdinalIgnoreCase);
+
+        [JsonIgnore]
+        private bool IsPlainHttp => Url.StartsWith("http://", System.StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>True when the destination is configured and is actually sending traffic in the clear.</summary>
+        [JsonIgnore]
+        public bool IsInsecure => IsPlainHttp && AllowInsecureHttp;
+
+        [JsonIgnore]
+        public bool IsUsable => IsHttps || (IsPlainHttp && AllowInsecureHttp);
 
         /// <summary>The collection URL with exactly one trailing slash, which is how WebDAV names a folder.</summary>
         public string NormalizedUrl => Url.TrimEnd('/') + "/";
