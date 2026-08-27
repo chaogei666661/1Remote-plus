@@ -27,7 +27,7 @@ namespace Tests.View
             if (method == null)
                 throw new InvalidOperationException("CustomCheckMethod not found on AboutPageViewModel");
 
-            return (VersionHelper.CheckUpdateResult)method.Invoke(null, new object?[] { html, "https://github.com/chaogei/1Remote/releases", current, null })!;
+            return (VersionHelper.CheckUpdateResult)method.Invoke(null, new object?[] { html, "https://github.com/chaogei666661/1Remote-plus/releases", current, null })!;
         }
 
         /// <summary>Shaped like the real page: newest release first, each linking to its tag.</summary>

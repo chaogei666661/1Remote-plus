@@ -21,22 +21,22 @@ namespace _1RM
                 {
                     // The "latest" page resolves to the newest non-prerelease, so a stable build never
                     // gets nagged about a beta tag.
-                    "https://github.com/chaogei/1Remote/releases/latest",
+                    "https://github.com/chaogei666661/1Remote-plus/releases/latest",
                 }
                 : new[]
                 {
-                    "https://github.com/chaogei/1Remote/releases",
+                    "https://github.com/chaogei666661/1Remote-plus/releases",
                 };
 
         public static string[] UpdatePublishUrls =>
             string.IsNullOrEmpty(PreRelease)
                 ? new[]
                 {
-                    "https://github.com/chaogei/1Remote/releases/latest",
+                    "https://github.com/chaogei666661/1Remote-plus/releases/latest",
                 }
                 : new[]
                 {
-                    "https://github.com/chaogei/1Remote/releases",
+                    "https://github.com/chaogei666661/1Remote-plus/releases",
                 };
     }
 }

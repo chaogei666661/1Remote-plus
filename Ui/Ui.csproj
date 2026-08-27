@@ -93,7 +93,7 @@
         <Product>1Remote</Product>
         <Description>1Remote is a modern personal remote session manager and launcher.</Description>
         <Copyright>Copyright (C) Shawn Veck and 1Remote contributors. Fork maintained by chaogei. Licensed under GPL-3.0.</Copyright>
-        <RepositoryUrl>https://github.com/chaogei/1Remote</RepositoryUrl>
+        <RepositoryUrl>https://github.com/chaogei666661/1Remote-plus</RepositoryUrl>
     </PropertyGroup>
 
     <!--<ItemGroup>
