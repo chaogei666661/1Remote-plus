@@ -48,6 +48,10 @@
         <TieredPGO>true</TieredPGO>
     </PropertyGroup>
 
+    <!-- The two conditions below, their publish profiles and the #if NETFRAMEWORK branches they feed are
+         unmaintained: CI builds net9 only, so nothing verifies that either of them still compiles. They
+         stay because the configuration names are referenced by Visual Studio and the Store packaging
+         project. See the "Target frameworks" section of DEVELOP.md. -->
     <PropertyGroup Condition="$(Configuration.Contains('Net6'))">
         <TargetFramework>net6.0-windows10.0.19041.0</TargetFramework>
     </PropertyGroup>
@@ -86,6 +90,10 @@
     </PropertyGroup>
 
     <PropertyGroup>
+        <!-- Ui/AppVersion.cs is the version to edit. The PreBuild target below runs
+             scripts/Set-AssemblyVersion.ps1, which rewrites this element from those constants plus a date
+             stamp on every non-Debug build, so whatever is committed here is just the last build's
+             leftover and changing it by hand has no effect. -->
         <AssemblyVersion>1.3.0.10825</AssemblyVersion>
         <FileVersion>$(AssemblyVersion)</FileVersion>
         <Version>$(AssemblyVersion)</Version>

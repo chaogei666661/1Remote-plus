@@ -26,9 +26,14 @@ task Deps {
         #choco install -y windows-sdk-10-version-1809-all
 
         choco install -y visualstudio2022community
+        # net9 is what Ui targets by default; the 6.0 SDK stays only because the ReleaseNet6
+        # configuration is still in the solution for anyone who needs it.
+        choco install -y dotnet-9.0-sdk
         choco install -y dotnet-6.0-sdk
         choco install -y visualstudio2022-workload-manageddesktop
         choco install -y visualstudio2022-workload-universal
+        # the 10.0.19041 targeting pack, which the net9.0-windows10.0.19041.0 TFM needs
+        choco install -y windows-sdk-10-version-2004-all
 
         # optional
         # choco install -y git

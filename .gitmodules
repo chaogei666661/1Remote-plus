@@ -1,3 +1,6 @@
+# VncSharpCore is in 1Remote.sln but Ui.csproj takes VNC from the 1Remote.VncSharpCore NuGet package,
+# not from this project. Keep the submodule anyway: it is how a patched VNC control gets built and
+# compared locally. See DEVELOP.md.
 [submodule "VncSharpCore"]
 	path = VncSharpCore
 	url = https://github.com/1Remote/VncSharpCore.git
