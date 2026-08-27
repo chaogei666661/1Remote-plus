@@ -60,12 +60,12 @@ They run in CI, where the job is on `windows-latest` — that is what item 1 add
 - `Ui/View/AboutPageViewModel.cs` + `Ui/View/AboutPageView.xaml`: a banner that stays visible on the About
   page for as long as the build carries the placeholder. Visibility is set through a style trigger, not a
   local value, or the trigger could never win.
-- `readme.md`: the same warning in the new security notes section — a placeholder-salt build must not be
-  pointed at a password store written by an official release.
+- `README.md` / `README.zh-CN.md`: the same warning in the security notes section — a placeholder-salt build
+  must not be pointed at a password store written by an official release.
 
 ### 3. Fork identity — DONE
 
-`https://github.com/chaogei/1Remote` → `https://github.com/chaogei666661/1Remote-plus` in: `readme.md`
+`https://github.com/chaogei/1Remote` → `https://github.com/chaogei666661/1Remote-plus` in: the README pair
 (badges and links), `CODE_OF_CONDUCT.md`, `Ui/Ui.csproj` (`RepositoryUrl`), `Ui/AppVersion.cs` (update
 check), `Ui/Service/TaskTrayService.cs`, `Ui/View/Settings/ProtocolConfig/ExternalRunnerSettingsViewModel.cs`
 (issue template), `Ui/View/RequestRatingView.xaml`, `Ui/View/Guidance/Intro.xaml`,
@@ -137,7 +137,7 @@ left alone. `rg "chaogei/1Remote"` now returns nothing.
 
 ### 9. Threat model docs — DONE
 
-`readme.md`, new security notes section: `1Remote.db` is obfuscated with a build-time salt and is not
+`README.md` and `README.zh-CN.md`, security notes section: `1Remote.db` is obfuscated with a build-time salt and is not
 per-user encryption; what Windows Hello does and does not gate; `cmd://` shells out and is approved per
 machine; WebDAV needs HTTPS; SFTP/FTPS host identity is verified and remembered.
 
