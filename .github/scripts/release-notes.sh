@@ -22,10 +22,14 @@ fi
 echo "## What's Changed"
 echo
 
+# CI writes the version bump back to main as "chore(release): <tag> [skip ci]", one per release. Those
+# commits say nothing about what changed, so they are left out of the list.
+LOG_OPTS=(-n 100 --pretty=format:'- %s (%h)' --no-merges --invert-grep --grep='^chore(release): ')
+
 if [ -n "$PREV" ]; then
-  LOG="$(git log -n 100 "${PREV}..${TAG}" --pretty=format:'- %s (%h)' --no-merges)"
+  LOG="$(git log "${LOG_OPTS[@]}" "${PREV}..${TAG}")"
 else
-  LOG="$(git log -n 100 "$TAG" --pretty=format:'- %s (%h)' --no-merges)"
+  LOG="$(git log "${LOG_OPTS[@]}" "$TAG")"
 fi
 
 if [ -z "$LOG" ]; then
