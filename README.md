@@ -684,8 +684,14 @@ connection history, custom runners and icons — into a single archive.
 Servers kept in a remote MySQL or PostgreSQL source stay in that database; the backup only records the
 details needed to reach it.
 
+The suggested name is `1Remote-YYYYMMDD-HHmmss.1rbak`, with a Gregorian year whatever calendar the desktop
+uses — it used to be formatted in the ambient culture, so the same backup came out named `2569…` on a
+Thai-locale machine and a folder of archives from a mixed fleet neither sorted nor matched. The `created=`
+line inside the archive is now UTC for the same reason.
+
 The archive contains your configuration **unencrypted**. Use an HTTPS destination and a folder only you can
-read.
+read. Creating one is written to the credential-access log, since it carries the credential database off the
+machine.
 
 ## Import and export
 

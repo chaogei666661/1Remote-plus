@@ -1,7 +1,9 @@
 using System;
+using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Text;
+using System.Text.RegularExpressions;
 using _1RM.Service;
 using _1RM.Service.Backup;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -157,6 +159,72 @@ namespace Tests.Service.Backup
             File.WriteAllText(_archive, "this is a text file with a .1rbak name");
 
             Assert.IsFalse(BackupService.IsBackup(_archive));
+        }
+
+        /// <summary>
+        /// The suggested name used to be an interpolated <c>DateTime.Now</c>, which formats the year in the
+        /// current culture's calendar. On a Thai-locale desktop the backup came out named 2569…, on a Hijri
+        /// one 1448…, so a folder of archives from a mixed fleet neither sorted nor matched.
+        /// </summary>
+        [TestMethod]
+        public void TheSuggestedNameUsesTheGregorianYearWhateverTheDesktopsCalendarIs()
+        {
+            var original = CultureInfo.CurrentCulture;
+            try
+            {
+                CultureInfo.CurrentCulture = new CultureInfo("th-TH");
+                var name = BackupService.SuggestedFileName();
+
+                StringAssert.Contains(name, DateTime.Now.Year.ToString(CultureInfo.InvariantCulture));
+                Assert.IsFalse(name.Contains((DateTime.Now.Year + 543).ToString(CultureInfo.InvariantCulture)),
+                    "the Buddhist year does not belong in a file name");
+            }
+            finally
+            {
+                CultureInfo.CurrentCulture = original;
+            }
+        }
+
+        [TestMethod]
+        public void TheSuggestedNameIsAnArchiveAndCarriesASortableStamp()
+        {
+            var name = BackupService.SuggestedFileName();
+
+            StringAssert.EndsWith(name, BackupService.FILE_EXTENSION);
+            StringAssert.Matches(name, new Regex(@"-\d{8}-\d{6}\" + BackupService.FILE_EXTENSION + "$"),
+                "the stamp has to be 24-hour and sort as text, or two backups a day apart read out of order");
+        }
+
+        /// <summary>
+        /// The manifest is what somebody comparing two archives reads. It was written in local time and in
+        /// the ambient calendar, so two backups taken a minute apart in different time zones looked hours
+        /// apart, and one from a Thai desktop was dated in a different millennium.
+        /// </summary>
+        [TestMethod]
+        public void TheManifestRecordsWhenItWasTakenInUtcAndInTheGregorianCalendar()
+        {
+            var original = CultureInfo.CurrentCulture;
+            try
+            {
+                CultureInfo.CurrentCulture = new CultureInfo("th-TH");
+                Write(AppPathHelper.Instance.ProfileJsonPath, "{}");
+                BackupService.Create(_archive);
+
+                using var file = new FileStream(_archive, FileMode.Open, FileAccess.Read, FileShare.Read);
+                using var archive = new ZipArchive(file, ZipArchiveMode.Read);
+                using var reader = new StreamReader(archive.GetEntry(MANIFEST_ENTRY)!.Open(), Encoding.UTF8);
+                var manifest = reader.ReadToEnd();
+
+                var created = Regex.Match(manifest, @"created=(?<stamp>[^\r\n]+)");
+                Assert.IsTrue(created.Success, "the manifest has to say when the archive was taken");
+                Assert.IsTrue(DateTime.TryParseExact(created.Groups["stamp"].Value, "yyyy-MM-dd HH:mm:ss'Z'",
+                        CultureInfo.InvariantCulture, DateTimeStyles.None, out _),
+                    $"'{created.Groups["stamp"].Value}' is not a UTC stamp in the invariant calendar");
+            }
+            finally
+            {
+                CultureInfo.CurrentCulture = original;
+            }
         }
     }
 }

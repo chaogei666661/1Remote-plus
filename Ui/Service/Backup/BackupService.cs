@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using _1RM.Utils;
 using Shawn.Utils;
 
 namespace _1RM.Service.Backup
@@ -47,7 +49,13 @@ namespace _1RM.Service.Backup
             yield return new BackupItem("icons", paths.LocalityIconDirPath, isDirectory: true);
         }
 
-        public static string SuggestedFileName() => $"{Assert.APP_NAME}-{DateTime.Now:yyyyMMdd-HHmmss}{FILE_EXTENSION}";
+        /// <summary>
+        /// Through <see cref="TimestampedFileName"/> rather than an interpolated <c>DateTime.Now</c>,
+        /// because that formats the year in the current culture's calendar: the same backup was named
+        /// 2026… on most desktops, 2569… under a Thai locale and 1448… under a Hijri one, so a folder of
+        /// them from a mixed fleet neither sorted nor matched. A file name is an identifier.
+        /// </summary>
+        public static string SuggestedFileName() => TimestampedFileName.For(Assert.APP_NAME, FILE_EXTENSION);
 
         /// <summary>
         /// Writes every configured path into <paramref name="archivePath"/>. Returns how many entries were
@@ -72,7 +80,10 @@ namespace _1RM.Service.Backup
             {
                 writer.WriteLine($"{Assert.APP_NAME} backup");
                 writer.WriteLine($"version={AppVersion.Version}");
-                writer.WriteLine($"created={DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+                // Invariant and UTC, for the same reason as the file name, plus one of its own: "created"
+                // is the field somebody compares two archives by, and local time makes two backups taken a
+                // minute apart in different zones look hours apart.
+                writer.WriteLine($"created={DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)}Z");
             }
 
             foreach (var item in Items())
