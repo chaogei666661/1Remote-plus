@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using _1RM.Service;
 using _1RM.Utils;
+using _1RM.Utils.FileTransmit;
 using _1RM.Utils.Tracing;
 using Shawn.Utils;
 using Shawn.Utils.Interface;
@@ -477,7 +478,7 @@ namespace _1RM.Model.Protocol.FileTransmit.Transmitters.TransmissionController
                 var dirPaths = new Queue<string>();
                 var allItems = new Queue<TransmitItem>();
                 dirPaths.Enqueue(topItem.FullName);
-                allItems.Enqueue(new TransmitItem(topItem, Path.Combine(_destinationDirectoryPath, topItem.Name)));
+                allItems.Enqueue(new TransmitItem(topItem, LocalPathFor(topItem.Name)));
                 while (dirPaths.Any())
                 {
                     var path = dirPaths.Dequeue();
@@ -488,7 +489,7 @@ namespace _1RM.Model.Protocol.FileTransmit.Transmitters.TransmissionController
                         {
                             dirPaths.Enqueue(item.FullName);
                         }
-                        var dst = Path.Combine(_destinationDirectoryPath, item.FullName.RemoveFirst(srcParentDirPath).Replace('/', '\\').Trim(new char[] { '/', '\\' }));
+                        var dst = LocalPathFor(item.FullName.RemoveFirst(srcParentDirPath));
                         allItems.Enqueue(new TransmitItem(item, dst));
                     }
                 }
@@ -498,9 +499,36 @@ namespace _1RM.Model.Protocol.FileTransmit.Transmitters.TransmissionController
                     AddTransmitItem(item);
                 }
             }
+            catch (UnsafeRemoteNameException)
+            {
+                // Not swallowed like the rest: the user asked for a folder, the server answered with a name
+                // that points out of it, and the only safe outcome is to abandon the whole transfer loudly.
+                throw;
+            }
             catch (Exception e)
             {
                 SimpleLogHelper.Error(e);
+            }
+        }
+
+        /// <summary>
+        /// Where a downloaded entry goes, with the destination folder enforced as a boundary.
+        ///
+        /// Every argument here came off the wire. See <see cref="DownloadPathGuard"/> for what a server can
+        /// do with a listing if nobody checks; the guard's own message is English, so it is re-thrown with
+        /// the translated one, which is what the transfer pane shows.
+        /// </summary>
+        private string LocalPathFor(string remoteRelativePath)
+        {
+            try
+            {
+                return DownloadPathGuard.Resolve(_destinationDirectoryPath, remoteRelativePath);
+            }
+            catch (UnsafeRemoteNameException e)
+            {
+                SimpleLogHelper.Warning($"{nameof(TransmitTask)}: refused a remote name outside the download folder: {e.RemoteName}");
+                throw new UnsafeRemoteNameException(e.RemoteName,
+                    _languageService.Translate("file_transmit_host_error_unsafe_remote_name", e.RemoteName));
             }
         }
 
@@ -583,8 +611,10 @@ namespace _1RM.Model.Protocol.FileTransmit.Transmitters.TransmissionController
                         }
                         else
                         {
-                            var dstPath = ServerPathCombine(_destinationDirectoryPath, item.Name);
-                            AddTransmitItem(new TransmitItem(item, dstPath));
+                            // A download destination is a local path, so it is built with the local separator
+                            // and checked; ServerPathCombine, which used to be called here, builds a remote
+                            // one and normalises nothing.
+                            AddTransmitItem(new TransmitItem(item, LocalPathFor(item.Name)));
                         }
                     }
             }
@@ -729,6 +759,12 @@ namespace _1RM.Model.Protocol.FileTransmit.Transmitters.TransmissionController
         {
             try
             {
+                // The scan built this path and checked it, but the check is cheap and this is the line that
+                // actually creates something on disk, so it is where the boundary is worth restating.
+                if (!DownloadPathGuard.IsContained(_destinationDirectoryPath, item.DstPath))
+                    throw new UnsafeRemoteNameException(item.ItemName,
+                        _languageService.Translate("file_transmit_host_error_unsafe_remote_name", item.ItemName));
+
                 if (item.IsDirectory)
                 {
                     if (!Directory.Exists(item.DstPath))
@@ -750,6 +786,13 @@ namespace _1RM.Model.Protocol.FileTransmit.Transmitters.TransmissionController
                                                   _cancellationSource.Token);
                     }
                 }
+            }
+            catch (UnsafeRemoteNameException)
+            {
+                // Everything else here is a transfer failure the user can retry. This one is a server trying
+                // to write somewhere it was not invited, so it has to reach the transfer pane.
+                TransmitTaskStatus = ETransmitTaskStatus.Cancel;
+                throw;
             }
             catch (Exception e)
             {

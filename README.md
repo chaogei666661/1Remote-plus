@@ -477,8 +477,30 @@ explicitly enabled in the backup settings, which is only ever reasonable on a lo
 **SFTP and FTPS verify host identity** on first use and refuse silently changed identities; accepted
 fingerprints live in `.locality/known_hosts.json`.
 
+**Downloads stay in the folder you chose.** A recursive download builds every local path out of names the
+server supplied, and neither protocol stops a server from answering a listing with `..\..\Startup\x.exe` or
+`C:\Windows\System32\evil.dll`. Names like those are now re-rooted under the destination or, where that is
+impossible, refused with the offending name quoted and the whole transfer stopped before anything is
+written. The same check runs on double-click preview, which downloads to the temp folder and then opens the
+file with its associated program — and preview now only opens a transfer that actually finished.
+
+**Remote file names are shown as they really are.** A name can be made to render as something other than
+itself: an entry named `invoice⁠<U+202E>gnp.exe` is drawn by any conforming text stack as `invoiceexe.png`,
+and double-clicking it in the browser would have started a program. The file browser spells out invisible
+formatting characters — bidirectional overrides, zero-width joiners, control characters — instead of obeying
+them, and previewing such a file asks first, quoting the real name and the extension that will actually
+decide what runs. Ordinary names, accents and CJK included, are shown unchanged.
+
 **Temporary files.** Generated `.rdp` files and private-key copies are staged in a per-session directory that
 is removed when the session ends, rather than in the shared temp folder.
+
+**SSH transport algorithms.** SFTP sessions, SSH jump hosts and standing port forwards all negotiate through
+the bundled SSH.NET library. It offers AES-GCM and ChaCha20-Poly1305, encrypt-then-MAC integrity — which is
+what lets OpenSSH's strict key exchange engage, the mitigation for the Terrapin attack (CVE-2023-48795) —
+and the `mlkem768x25519` / `sntrup761x25519` post-quantum key exchanges. Algorithms OpenSSH turned off years
+ago are not offered at all: arcfour, blowfish, CAST, Twofish, the MD5 and RIPEMD-160 MACs, the truncated
+`-96` MACs, and `ssh-dss` host keys. A device old enough to require one of those will refuse to negotiate;
+reach it with PuTTY, which this app can launch as an external SSH runner.
 
 ## Proxies, jump hosts and port forwarding
 
