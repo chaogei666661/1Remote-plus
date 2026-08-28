@@ -105,6 +105,11 @@ namespace Tests.Utils.FileTransmit
             Assert.AreEqual("", LocalUploadScan.RemoteFolderName("   "));
             Assert.AreEqual("", LocalUploadScan.RemoteFolderName("/"));
             Assert.AreEqual("", LocalUploadScan.RemoteFolderName(@"\"));
+            // A colon past the drive qualifier: a folder name on Unix, an alternate data stream to Win32,
+            // and a folder the server cannot be asked to create either way. Both shapes are checked here
+            // because this is string work and gives the same answer on whichever platform runs it.
+            Assert.AreEqual("", LocalUploadScan.RemoteFolderName(@"C:\Users\bob\stream:evil"));
+            Assert.AreEqual("", LocalUploadScan.RemoteFolderName("/home/bob/stream:evil"));
         }
 
         // ---------------------------------------------------------------- the walk
@@ -261,11 +266,28 @@ namespace Tests.Utils.FileTransmit
 
         // ---------------------------------------------------------------- refusals
 
+        /// <summary>
+        /// A folder the scan cannot name has to be refused with an exception, not walked anyway.
+        ///
+        /// The input matters more than it looks. This case used to pass the separator on its own, which is
+        /// only unnameable on Unix: on Windows <c>\</c> resolves to the root of the current drive, and a
+        /// drive root is nameable on purpose — see ADriveRootIsNamedAfterItsDriveInsteadOfFailing. So the
+        /// walk started, listing all of <c>C:\</c> raised UnauthorizedAccessException, and the case failed
+        /// on CI while passing here.
+        ///
+        /// A colon in the last component is refused on both platforms and survives path normalisation on
+        /// both: Unix allows a folder to be called that, Windows reads it as an alternate data stream, and
+        /// neither is a folder the server can be asked to create. The path need not exist — the name is
+        /// decided before anything is listed.
+        /// </summary>
         [TestMethod]
         public void AFolderThatCannotBeNamedOnTheServerIsRefusedLoudly()
         {
-            Assert.ThrowsException<ArgumentException>(
-                () => LocalUploadScan.Enumerate(new DirectoryInfo(Path.DirectorySeparatorChar.ToString())));
+            var unnameable = new DirectoryInfo(Path.Combine(_root, "stream:evil"));
+
+            Assert.AreEqual("", LocalUploadScan.RemoteFolderName(unnameable),
+                "this case is only worth anything if the platform really cannot name the input");
+            Assert.ThrowsException<ArgumentException>(() => LocalUploadScan.Enumerate(unnameable));
         }
     }
 }
