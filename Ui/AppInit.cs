@@ -106,6 +106,9 @@ namespace _1RM
         public static void Init()
         {
             SimpleLogHelper.WriteLogLevel = SimpleLogHelper.EnumLogLevel.Disabled;
+            // Before anything can start a thread: Bootstrapper only sees the dispatcher, so until this is
+            // installed a failure on any other thread leaves no log line, no report and no dialog.
+            UnhandledFailureReporter.Install();
             // Set salt by github action with repository secret
             UnSafeStringEncipher.Init(Assert.STRING_SALT);
             Directory.SetCurrentDirectory(AppDomain.CurrentDomain.BaseDirectory); // in case user start app in a different working dictionary.

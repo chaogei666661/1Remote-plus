@@ -740,6 +740,14 @@ window itself, which is opaque by design.
 app somewhere writable, or restart it and choose *Install for current Windows account* to keep data in
 `AppData`.
 
+**The app vanished with no error.** It should now leave a line behind. Only the UI thread had a crash
+handler, and most of what this app does is not on it — the audit writer, the transfer threads, the SSH
+receive threads, the retention pass, the import and export bodies — so a failure on any of those ended the
+process with nothing written anywhere. The same handler catches a background task that failed and was never
+looked at, which is what a transfer that reports success and moves nothing looks like from the inside. Both
+are written to `.logs/1Remote.log.md`, tagged `AppDomain.UnhandledException` or
+`TaskScheduler.UnobservedTaskException`, and capped at twenty entries per run so a loop cannot fill the disk.
+
 **Getting more detail.** Set `Options → General → Log level` to a more verbose setting and read
 `.logs/1Remote.log.md`. Attach the relevant part to an issue.
 
