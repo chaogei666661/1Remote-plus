@@ -602,8 +602,17 @@ exception that went to the log and nowhere else: the transfer reported success a
 Uploading a drive root hit this every time. The scan now skips the folder it could not list, uploads
 everything else, creates the skipped folder empty on the server, and names it in the transfer panel.
 
-**Temporary files.** Generated `.rdp` files and private-key copies are staged in a per-session directory that
-is removed when the session ends, rather than in the shared temp folder.
+**Previewing a `.rdp` no longer goes through a command shell.** The **Preview \*.rdp** button of the RDP and
+RemoteApp editors writes the file mstsc would be given and opens it in Notepad. It used to do that by piping
+`notepad <path>` into a `cmd.exe`, unquoted — and the path contains the server's display name, which cmd reads
+`&` out of as a command separator. A server called `x&calc&y` therefore ran `calc` with your account when its
+editor page was previewed, and a name with an ordinary space in it did not open at all. Notepad is now started
+directly with the path as an argument, so nothing in the name is interpreted. The preview file also carries
+the session password as a DPAPI blob, and it used to be left in `%TEMP%` for good under a predictable name; it
+now goes into the same per-session directory the connect path uses and is removed a minute later.
+
+**Temporary files.** Generated `.rdp` files, `.rdp` previews and private-key copies are staged in a
+per-session directory that is removed when the session ends, rather than in the shared temp folder.
 
 **SSH transport algorithms.** SFTP sessions, SSH jump hosts and standing port forwards all negotiate through
 the bundled SSH.NET library. It offers AES-GCM and ChaCha20-Poly1305, encrypt-then-MAC integrity — which is
