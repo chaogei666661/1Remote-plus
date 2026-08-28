@@ -4,6 +4,7 @@ using System.Linq;
 using _1RM.Model;
 using _1RM.Model.Protocol.Base;
 using _1RM.Utils;
+using _1RM.Utils.Diagnostics;
 using _1RM.Utils.Proxy;
 using Shawn.Utils;
 
@@ -127,7 +128,12 @@ namespace _1RM.Service
             catch (Exception e)
             {
                 SimpleLogHelper.Error(e);
-                return AskToFallBackToDirect(protocol, IoC.Translate("proxy_tunnel_failed_hint", proxy.Name, e.Message));
+                // The raw message here is whichever socket or SSH error the tunnel hit, which does not tell
+                // the user whether the proxy address is wrong, the proxy refused them, or the target behind
+                // it is down — and those need three different fixes.
+                var failure = ConnectionFailureClassifier.Classify(e);
+                var detail = $"{IoC.Translate(failure.HintKey)} ({failure.RawMessage})";
+                return AskToFallBackToDirect(protocol, IoC.Translate("proxy_tunnel_failed_hint", proxy.Name, detail));
             }
         }
 
