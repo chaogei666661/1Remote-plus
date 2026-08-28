@@ -64,6 +64,10 @@ namespace _1RM.Utils.Proxy
             {
                 KeepAliveInterval = KeepAliveInterval,
             };
+            // Without this SSH.NET trusts whatever key arrives, and the jump host's credentials go to
+            // whoever answered. See SshHostKeyGate.
+            client.HostKeyReceived += (_, e) =>
+                e.CanTrust = SshHostKeyGate.IsTrusted(jump.Address, jump.Port, e.HostKey, DescribeFor(jump, e.HostKeyName));
             try
             {
                 client.Connect();
@@ -74,6 +78,19 @@ namespace _1RM.Utils.Proxy
                 client.Dispose();
                 throw;
             }
+        }
+
+        /// <summary>
+        /// The line under the fingerprint in the prompt. The proxy entry's name is in it because the
+        /// address alone does not tell the user which of their bastions is being dialled, and a forward
+        /// started automatically at launch asks without anything else on screen to explain itself.
+        /// </summary>
+        private static string DescribeFor(ProxyConfig jump, string hostKeyName)
+        {
+            var name = string.IsNullOrWhiteSpace(jump.Name) ? "?" : jump.Name;
+            return string.IsNullOrWhiteSpace(hostKeyName)
+                ? $"SSH jump host \"{name}\""
+                : $"SSH jump host \"{name}\" ({hostKeyName})";
         }
 
         private static KeyboardInteractiveAuthenticationMethod BuildKeyboardInteractive(string userName, string password)

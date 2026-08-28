@@ -8,6 +8,7 @@ using _1RM.Service.DataSource.DAO;
 using _1RM.Service.DataSource.DAO.Dapper;
 using _1RM.Service.DataSource.Model;
 using _1RM.Utils;
+using _1RM.Utils.Import;
 using _1RM.Utils.mRemoteNG;
 using _1RM.Utils.PRemoteM;
 using _1RM.Utils.RdpFile;
@@ -379,6 +380,48 @@ namespace _1RM.View.ServerView
         }
 
 
+        /// <summary>
+        /// Shows what an import would install that runs locally, and lets the user back out.
+        ///
+        /// A server entry carries up to three command lines this app executes on the importing machine —
+        /// the before-connect script, the after-disconnect script, and a <see cref="LocalApp"/>'s program —
+        /// and all three travel inside a JSON file, a PRemoteM database or a backup archive. Until now the
+        /// importers inserted them without a word, so "here is my server list" was a way to have a command
+        /// run on somebody else's desktop the next time they opened the entry. See
+        /// <see cref="ImportedCommandScan"/>.
+        /// </summary>
+        /// <returns>False when the user declined, in which case nothing should be written.</returns>
+        private static bool ConfirmLocalCommands(IReadOnlyList<ProtocolBase> servers)
+        {
+            if (servers.Count == 0)
+                return true;
+
+            var found = ImportedCommandScan.Scan(servers.Select(x => new ImportedCommandSource(
+                x.DisplayName,
+                x.CommandBeforeConnected,
+                x.CommandAfterDisconnected,
+                (x as LocalApp)?.ExePath)));
+            if (found.Count == 0)
+                return true;
+
+            var body = ImportedCommandScan.Describe(found,
+                describeKind: kind => IoC.Translate(kind switch
+                {
+                    EImportedCommandKind.BeforeConnect => "import_local_command_before_connect",
+                    EImportedCommandKind.AfterDisconnect => "import_local_command_after_disconnect",
+                    _ => "import_local_command_local_app",
+                }),
+                describeOmitted: n => IoC.Translate("import_local_command_more", n.ToString()));
+
+            return MessageBoxHelper.Confirm(
+                IoC.Translate("import_local_command_warning",
+                    ImportedCommandScan.ServerCount(found).ToString(),
+                    servers.Count.ToString(),
+                    body),
+                title: IoC.Translate("import_local_command_title"));
+        }
+
+
         private async Task<Tuple<DataSourceBase?, string?>> GetImportParamsAsync(string filter)
         {
             // select save to which source
@@ -425,6 +468,12 @@ namespace _1RM.View.ServerView
                                 server.Id = string.Empty;
                                 server.DecryptToConnectLevel();
                                 list.Add(server);
+                            }
+
+                            if (!ConfirmLocalCommands(list))
+                            {
+                                MessageBoxHelper.Info(IoC.Translate("import_cancelled_by_user"));
+                                return;
                             }
 
                             var ret = source.Database_InsertServer(list);
@@ -513,6 +562,12 @@ namespace _1RM.View.ServerView
                                 server.Id = string.Empty;
                             }
 
+                            if (!ConfirmLocalCommands(list))
+                            {
+                                MessageBoxHelper.Info(IoC.Translate("import_cancelled_by_user"));
+                                return;
+                            }
+
                             var ret = source.Database_InsertServer(list);
                             if (ret.IsSuccess)
                             {
@@ -560,6 +615,12 @@ namespace _1RM.View.ServerView
                             var list = MRemoteNgImporter.FromCsv(path, ServerIcons.Instance.IconsBase64);
                             if (list?.Count > 0)
                             {
+                                if (!ConfirmLocalCommands(list))
+                                {
+                                    MessageBoxHelper.Info(IoC.Translate("import_cancelled_by_user"));
+                                    return;
+                                }
+
                                 var ret = source.Database_InsertServer(list);
                                 if (ret.IsSuccess)
                                 {
@@ -609,6 +670,12 @@ namespace _1RM.View.ServerView
                             if (imported.Servers.Count == 0)
                             {
                                 MessageBoxHelper.Info(IoC.Translate("import_ssh_config_nothing"));
+                                return;
+                            }
+
+                            if (!ConfirmLocalCommands(imported.Servers))
+                            {
+                                MessageBoxHelper.Info(IoC.Translate("import_cancelled_by_user"));
                                 return;
                             }
 
@@ -670,6 +737,12 @@ namespace _1RM.View.ServerView
                         catch (Exception)
                         {
                             // ignored
+                        }
+
+                        if (!ConfirmLocalCommands(new ProtocolBase[] { rdp }))
+                        {
+                            MessageBoxHelper.Info(IoC.Translate("import_cancelled_by_user"));
+                            return;
                         }
 
                         var ret = AppData.AddServer(rdp, source);

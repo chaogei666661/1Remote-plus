@@ -124,6 +124,13 @@
     <s:String x:Key="import_from_sqlite_db">import PRemoteM db</s:String>
     <s:String x:Key="import_done_0_items_added">Imported successfully, {0} item(s) added.</s:String>
     <s:String x:Key="import_failure_with_data_format_error">Error data format!</s:String>
+    <s:String x:Key="import_local_command_title">This file runs programs on your computer</s:String>
+    <s:String x:Key="import_local_command_warning">{0} of the {1} entries in this file carry a command line that runs on THIS computer, with your account, every time you open the entry:&#10;&#10;{2}&#10;&#10;Only import them if you trust where this file came from. Import anyway?</s:String>
+    <s:String x:Key="import_local_command_more">…and {0} more</s:String>
+    <s:String x:Key="import_local_command_before_connect">before connect</s:String>
+    <s:String x:Key="import_local_command_after_disconnect">after disconnect</s:String>
+    <s:String x:Key="import_local_command_local_app">local application</s:String>
+    <s:String x:Key="import_cancelled_by_user">Import cancelled. Nothing was added.</s:String>
     <s:String x:Key="server_editor_different_options">&lt;different options&gt;</s:String>
     <s:String x:Key="server_editor_bulk_editing">Bulk editing</s:String>
     <s:String x:Key="server_editor_bulk_editing_title">You are editing in bulk:</s:String>

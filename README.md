@@ -94,8 +94,8 @@ This fork branched off upstream in August 2026. Everything below is new here; up
 - **Standing port forwards** — local, remote and dynamic (SOCKS) SSH tunnels that run independently of any
   session and can start with the app.
 - **Backup and restore**, plus optional upload of the same archive to a **WebDAV** folder.
-- **Host identity verification**, on by default: RDP certificates, SSH host keys on SFTP and FTPS
-  certificates are checked against a remembered fingerprint, with an explicit per-server opt-out.
+- **Host identity verification**, on by default: RDP certificates, SSH host keys on SFTP and on jump hosts,
+  and FTPS certificates are checked against a remembered fingerprint, with an explicit per-server opt-out.
 - **Passwords from a password manager** at connect time, via a `cmd://` reference to any CLI.
 - **Connection quality indicator** — an optional timer that grades each visible server on round-trip time,
   jitter and unanswered checks, not just up or down.
@@ -480,12 +480,32 @@ a potential code-execution vector. Each distinct command has to be approved once
 will ever run, and approvals are stored locally in `.locality/known_commands.json`; they never travel with
 the database. Pre/post-connect scripts are the same class of feature and carry the same caveat.
 
+**An import says what it is bringing in.** Three fields of a server entry are command lines this app runs on
+*your* machine, with *your* account: **Script before connect**, **Script after disconnected**, and a **Local
+app** entry's program. All three are serialised into the JSON export, the PRemoteM/1Remote database and the
+backup archive, and the importers used to insert them without a word — so "here is our server list" was a way
+to put a command on somebody's desktop that runs the next time they open the entry, which they will, because
+that is why they imported it. Importing from JSON, a database, mRemoteNG CSV, an `.rdp` file or an SSH config
+now lists the entries that carry a command, quotes the command, and asks once before anything is written.
+Nothing is rewritten and nothing is refused — the point is that the answer is given by someone who knows
+where the file came from. Invisible characters in a command are spelled out (`<U+202E>`) rather than obeyed,
+so a command cannot be drawn as something other than what runs, or use newlines to push the question off the
+dialog.
+
 **WebDAV backups require HTTPS.** The archive contains the whole configuration, the credential database
 included, and the client sends Basic authentication pre-emptively. Plain `http://` is refused unless it is
 explicitly enabled in the backup settings, which is only ever reasonable on a loopback or lab endpoint.
 
 **SFTP and FTPS verify host identity** on first use and refuse silently changed identities; accepted
 fingerprints live in `.locality/known_hosts.json`.
+
+**So does the SSH jump host.** The bastion was the one SSH connection this app makes itself, and it was the
+one it did not check: the underlying library accepts any host key unless the caller refuses, and nothing
+refused. Its password — or the passphrase-unlocked private key — was offered to whatever answered on that
+address, and because every proxied session and every standing port forward rides inside that one transport,
+intercepting a single handshake yielded all of them. A jump host now asks on first use like everything else
+and is remembered in the same `known_hosts.json`, keyed separately from the same machine reached as an SFTP
+server. Expect one prompt per bastion after upgrading; an auto-started port forward will ask at launch.
 
 **Downloads stay in the folder you chose.** A recursive download builds every local path out of names the
 server supplied, and neither protocol stops a server from answering a listing with `..\..\Startup\x.exe` or
@@ -719,6 +739,14 @@ window itself, which is opaque by design.
 **"We don't have write permissions for…" at startup.** The folder holding the profile is read-only. Move the
 app somewhere writable, or restart it and choose *Install for current Windows account* to keep data in
 `AppData`.
+
+**The app vanished with no error.** It should now leave a line behind. Only the UI thread had a crash
+handler, and most of what this app does is not on it — the audit writer, the transfer threads, the SSH
+receive threads, the retention pass, the import and export bodies — so a failure on any of those ended the
+process with nothing written anywhere. The same handler catches a background task that failed and was never
+looked at, which is what a transfer that reports success and moves nothing looks like from the inside. Both
+are written to `.logs/1Remote.log.md`, tagged `AppDomain.UnhandledException` or
+`TaskScheduler.UnobservedTaskException`, and capped at twenty entries per run so a loop cannot fill the disk.
 
 **Getting more detail.** Set `Options → General → Log level` to a more verbose setting and read
 `.logs/1Remote.log.md`. Attach the relevant part to an issue.

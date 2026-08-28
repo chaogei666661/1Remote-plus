@@ -8,6 +8,163 @@ saying why the reason no longer holds.
 
 ---
 
+## 2026-08-28 — the bastion nobody verified, the import that brought its own commands, and the crash that left no note
+
+Branch `cursor/bastion-key-import-scan-crashlog-4b12`, off `main` at `df91984f` (v1.3.0.24). Opened on the
+release, as §0 says. The last round's "Not taken" list was thin — `.NET 10` (out of scope by instruction),
+the legacy-SSH toggle (still wants an editor page), `~VmFileTransmitHost()` (still cannot throw), a branch
+unreachable on Windows, and two items waiting on a human at a Windows keyboard — so this round went looking
+instead of taking the top of the list. It stayed out of the transfer pane, which the last three rounds had to
+themselves.
+
+### What the research turned up
+
+**Nothing to port and nothing to patch, for the fifth round running.** `1Remote/1Remote`'s newest release is
+still `1.3-prerelease` (2026-04-29), stable still 1.2.1 from August 2025. `chaogei/1Remote-Plus`'s newest
+commits are the release plumbing this fork already has plus the four bare `Model:` commits. `dotnet restore
+Ui/Ui.csproj` emits no `NU19xx`: 22 direct references, no live advisory, direct or transitive.
+
+So the round is three findings in code that no previous round had read.
+
+**1. The bastion was the one SSH host this app never checked.** `HostTrustService` was written because SFTP
+"never subscribed to `HostKeyReceived`" — its own comment says so. `SshConnectionFactory.Connect` still
+did not, and it is the connection that matters more:
+
+| | Host key checked? | What rides on it |
+| --- | --- | --- |
+| SFTP (`TransmitterSFtp`) | yes, since the trust-store round | one file browser |
+| SSH jump host (`SshConnectionFactory`) | **no** | every proxied session — RDP and VNC included, because they go through the local relay — plus every standing port forward and the proxy tester |
+
+SSH.NET's default is `e.CanTrust = true`. So the jump host's password, or the passphrase-unlocked private
+key, went to whatever answered on that address, and one intercepted handshake yielded the credentials of
+everything routed through it. An auto-started forward does that at launch with nobody watching. Three call
+sites, one choke point: `SshJumpTunnel.Start`, `PortForwardService.GetOrConnectSession` and `ProxyTester`
+all go through `SshConnectionFactory.Connect`.
+
+**2. A server list is not only addresses — three of its fields are command lines this app runs locally.**
+`CommandBeforeConnected` and `CommandAfterDisconnected` are executed by `RunScriptBeforeConnect` /
+`RunScriptAfterDisconnected` on every connect and every disconnect, with the user's account and, with
+`HideCommandBeforeConnectedWindow`, no window; a `LocalApp` entry's `ExePath` is a program wearing a
+server's icon. All three are serialised by `JsonConvert.SerializeObject(list)` into the JSON export, live in
+the PRemoteM/1Remote database, and ride inside the backup archive. Every importer —
+`CmdImportFromJson`, `CmdImportFromDatabase`, `CmdImportFromCsv`, `CmdImportFromSshConfig`,
+`CmdImportFromRdp` — called `Database_InsertServer` without showing any of it.
+
+This is the threat the `cmd://` gate exists for. That gate's own comment in `AppPathHelper` says an approval
+to execute something "is about this machine and must not travel with a synced or shared database" — and the
+README already admits "pre/post-connect scripts are the same class of feature and carry the same caveat".
+They had no gate at all. "Here is our server list" was a way to put a command on somebody's desktop that runs
+the next time they open the entry, which they will, because that is why they imported it.
+
+**3. Only the UI thread had a crash handler.** `Bootstrapper.OnUnhandledException` is
+`DispatcherUnhandledException`. There is no `AppDomain.CurrentDomain.UnhandledException` and no
+`TaskScheduler.UnobservedTaskException` anywhere in the repository. Almost nothing this app does is on the
+dispatcher: the `1Rm.AuditLog` writer thread, the SFTP/FTP transfer threads, SSH.NET's receive threads, the
+retention pass, the reachability timer, and every `Task.Factory.StartNew` body — the import and export paths
+alone have five. An exception out of one of those wrote **nothing**: no log line, no Sentry event, no dialog.
+The process either disappeared, or — for a faulted `Task` nobody awaited, which on .NET Core does not end the
+process — carried on with the work silently not done. That second shape is what the last two rounds kept
+chasing from the far end: a transfer that reported success and moved nothing.
+
+### Taken
+
+| # | Change | Why this one |
+| --- | --- | --- |
+| 1 | `SshHostKeyGate`, subscribed by `SshConnectionFactory` | A credential handed to an unverified peer, on the one connection every proxied session depends on. The mirror of a guard this fork already built for the lesser case |
+| 2 | `ImportedCommandScan`, and the five importers ask before writing | Local code execution arriving inside a file the user was sent, through the one feature whose whole point is trusting somebody else's list |
+| 3 | `UnhandledFailureLog` + `UnhandledFailureReporter` | Every background crash in this app was invisible, which is also why the previous two rounds' bugs were so hard to find |
+
+### Rejected, and why
+
+| Idea | Why not this round |
+| --- | --- |
+| **Move to .NET 10** | Out of scope by instruction for the fifth round. Support for .NET 9 ends **2026-11-10**, now about ten weeks out. Still needs a round with nothing else in it |
+| **A `TrustUnverifiedHost` equivalent on `ProxyConfig`, so a jump host can opt out** | Would need a checkbox in the proxy editor, which cannot be tried from here, and there is nothing to opt out *of*: trust-on-first-use asks once and remembers, exactly like PuTTY. The per-server flag exists on `ProtocolBase` because RDP/FTPS certificate errors recur; a pinned SSH host key does not |
+| **Let `SshHostKeyGate` default to allowing when nothing wired it** | That is the hole, restored, while looking like a check. It refuses instead, so a wiring mistake is a login that fails rather than a verification that silently does not happen. There is a test for the default |
+| **Put the `HostTrustService` call inside `SshHostKeyGate` rather than wiring it from `Bootstrapper`** | `HostTrustService.cs` reaches `MessageBoxHelper` and therefore WPF, so the gate would have been the one file in this change that could not be run here. `HostTrustService` itself is untouched — instructed to leave it alone, and nothing about it needed to change |
+| **Gate the pre/post-connect scripts at *connect* time**, the way `cmd://` is gated | The right answer for the shared-database vector, and it is a second trust store, a second prompt and a decision about what happens when the answer is no during an auto-connect. Import confirmation covers the file-you-were-sent vector, which is the one with a delivery mechanism, and it is revertible on its own. Written down here so the next round does not have to find it again |
+| **Refuse or rewrite an imported command** | Renaming or stripping somebody's script behind their back, rejected for the same reason the deceptive-name round rejected sanitising a file name. A legitimate before-connect script is a real feature that real users have |
+| **Scan the backup restore path too** | The backup zip is on the do-not-touch list this round, and restore replaces the whole configuration rather than merging a list, which is a different question to ask the user |
+| **Put the `ProtocolBase` → `ImportedCommandSource` mapping in `ImportedCommandScan`** | It would drag WPF imaging and the IoC container into the one file that has to be runnable here. The mapping is five property reads in `ServerPageViewModelBase.ConfirmLocalCommands`, and it is the part CI covers rather than the harness |
+| **Show a dialog from `AppDomain.UnhandledException`** | It fires while the runtime is already ending the process, and the thread that died may be the UI thread. Writing the failure down is the whole of what is achievable; claiming more would be theatre |
+| **Log every unhandled failure without a cap** | A background loop that throws every iteration would write the same stack trace until the disk fills, and the user's database is on that disk. Twenty per run, with the twentieth line saying so, because a log that just stops reads as an app that recovered |
+| **Move `Bootstrapper.IsTransientGdiError` into the new class so both handlers share it** | The GDI+ suppression is about `WindowsFormsHost` painting, which is a dispatcher-thread event, and `AppDomain.UnhandledException` cannot suppress anything anyway. Moving it would also have meant rewriting `GdiErrorHandlingTests`, which reflects on the private method, for no behaviour change |
+| **Remove `~VmFileTransmitHost()`** | Carried over. Last round's reasoning holds unchanged: it cancels a token nobody registered on, so it cannot throw |
+| **Rework `scripts/watch-release-iteration.sh`** | Instructed not to unless it misreports. It did not: run for real this round (`--peek`, after this branch was pushed) it read v1.3.0.24 as published, [run 33149157431](https://github.com/chaogei666661/1Remote-plus/actions/runs/33149157431) as `success`, and decided `0 (idle) — 1 iteration branch(es) still ahead of main`, naming this branch and correctly writing off `cursor/project-analysis-report-df00` as stale. The `10` on this release was consumed by the parent before this round started, so that transition was not observed here |
+| **Session tab mute / read-only / lock; RDP per-monitor selection** | Carried over for the fifth round. Still needs a human at a Windows keyboard |
+
+### What landed
+
+| Commit | |
+| --- | --- |
+| `c3aa8193` | `security(proxy): the bastion was the one SSH host nobody checked` |
+| `f180aeaf` | `security(import): a server list you were sent could bring its own commands` |
+| `7f0cfeb0` | `fix(crash): a failure off the UI thread left nothing behind at all` |
+
+New files: `Ui/Utils/Proxy/SshHostKeyGate.cs`, `Ui/Utils/Import/ImportedCommandScan.cs`,
+`Ui/Utils/Tracing/UnhandledFailureLog.cs`, `Ui/Utils/Tracing/UnhandledFailureReporter.cs`.
+New tests: `Tests/Utils/Proxy/SshHostKeyGateTests.cs` (8),
+`Tests/Utils/Import/ImportedCommandScanTests.cs` (20),
+`Tests/Utils/Tracing/UnhandledFailureLogTests.cs` (13) — 41 in all.
+
+Eight new language keys in both `en-us.xaml` and `zh-cn.xaml` (527 keys each, no key in one and not the
+other). Change 1 needed none: it reuses the existing `host_trust_*` prompt. `README.md` and
+`README.zh-CN.md` updated for all three.
+
+### Verification
+
+`dotnet build Tests/Tests.csproj -c Debug -p:EnableWindowsTargeting=true --no-incremental` with SDK
+9.0.317 — **0 errors, 120 warnings**, which is the count `main` builds with.
+
+Level 2 of §7 for all three: a throwaway `net9.0` MSTest project compiling `SshHostKeyGate.cs`,
+`ImportedCommandScan.cs`, `RemoteNameInspector.cs`, `UnhandledFailureLog.cs` and four test files by
+absolute path, with a no-op `TestInit` and a `ProjectReference` to `Shawn.Utils.csproj` for
+`SimpleLogHelper`. **50 passed, 0 failed** — the 41 new cases plus the 9 existing `RemoteNameInspector`
+ones, which share a file under test. Nothing excluded.
+
+Each was checked against the bug it claims to catch:
+
+- With `SshHostKeyGate`'s unwired default and its missing-key branch both returning `true` — the
+  pre-change behaviour — **2** of the 8 gate cases fail.
+- With `Present()` no longer going through `RemoteNameInspector`, and `ServerCount` counting names instead
+  of positions, **4** of the 20 import cases fail.
+- With `Interlocked.Increment` replaced by `++`, `TheLimitHoldsWhenSeveralThreadsFailAtOnce` fails; with
+  the non-`Exception` branch replaced by a bare `ToString()`, **2** more fail.
+
+**The two hooks were also fired for real, outside the repository.** A `net9.0` console program compiling
+the real `UnhandledFailureLog.cs`, run twice — once with no hooks (the state before this change) and once
+with the wiring `UnhandledFailureReporter.Install()` puts in place:
+
+| | unobserved faulted `Task` | throw on a plain background thread |
+| --- | --- | --- |
+| before | nothing at all | runtime's own stderr dump, which a windowed app has nowhere to send |
+| after | `Unhandled failure [TaskScheduler.UnobservedTaskException, the process continues, thread 2]` with the inner `TimeoutException` intact | `Unhandled failure [AppDomain.UnhandledException, the process is terminating, thread 7]` with the stack |
+
+That program is not in the repository.
+
+Not executed anywhere, and needing a Windows reviewer: the `HostKeyReceived` subscription itself (SSH.NET
+must raise it and `HostKeyEventArgs` cannot be constructed outside the library), the `Bootstrapper.Configure`
+wiring line, and `ServerPageViewModelBase.ConfirmLocalCommands`'s five call sites. See the pull request for
+the manual steps.
+
+### For the next round
+
+1. **.NET 10.** Ten weeks to 2026-11-10. Own round, nothing else in it. Fifth round at the top of this list.
+2. Gate `CommandBeforeConnected` / `CommandAfterDisconnected` at **connect** time, the way `cmd://` is
+   gated. This round covers the file-you-were-sent vector; a shared MySQL/PostgreSQL data source another
+   admin can write to is still an unprompted command on every operator's desktop.
+3. `RunScriptAfterDisconnected`'s test-run message prints `CommandBeforeConnected` — testing the
+   after-disconnect script shows you the wrong one. `Ui/Model/Protocol/Base/ProtocolBase.cs:476`.
+4. `CmdExportSelectedToJson` warns with `IoC.Translate("Caution: Your data will be saved unencrypted!")`,
+   an English sentence used as a key, so no locale translates it — on the one path that writes every
+   password in cleartext. Its file name uses `yyyyMMddhhmmss`, a 12-hour clock with no AM/PM.
+5. An "allow legacy SSH algorithms" per-server toggle, so the remaining CBC / SHA-1 set can leave the
+   default. Still wants an editor page.
+6. Session tab mute / read-only / lock, and RDP per-monitor selection — still waiting on a human at a
+   Windows keyboard.
+
+---
+
 ## 2026-08-28 — the upload scan stops losing the whole transfer, and starts saying what it left out
 
 Branch `cursor/upload-scan-unreadable-folders-d60d`, off `main` at `f7d73fe0` (v1.3.0.23). Opened on the

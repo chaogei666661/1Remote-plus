@@ -124,6 +124,13 @@
     <s:String x:Key="import_from_sqlite_db">导入 PRemoteM 数据库</s:String>
     <s:String x:Key="import_done_0_items_added">已导入{0}条记录.</s:String>
     <s:String x:Key="import_failure_with_data_format_error">导入0条，输入的数据文件格式有误!</s:String>
+    <s:String x:Key="import_local_command_title">该文件会在你的电脑上运行程序</s:String>
+    <s:String x:Key="import_local_command_warning">该文件的 {1} 条记录中，有 {0} 条带着命令行：每次打开这些记录，命令都会以你的账户在本机执行。&#10;&#10;{2}&#10;&#10;只有确实信任文件来源时才导入。仍要导入吗？</s:String>
+    <s:String x:Key="import_local_command_more">……还有 {0} 条</s:String>
+    <s:String x:Key="import_local_command_before_connect">连接前脚本</s:String>
+    <s:String x:Key="import_local_command_after_disconnect">断开后脚本</s:String>
+    <s:String x:Key="import_local_command_local_app">本地应用</s:String>
+    <s:String x:Key="import_cancelled_by_user">已取消导入，未添加任何记录。</s:String>
     <s:String x:Key="server_editor_different_options">&lt;不同的值&gt;</s:String>
     <s:String x:Key="server_editor_bulk_editing">批量编辑</s:String>
     <s:String x:Key="server_editor_bulk_editing_title">你正在批量编辑:</s:String>
