@@ -111,6 +111,19 @@ Three things stop this from looping:
 
 If you need to push to `main` without cutting a release, put `[skip ci]` in your own commit subject.
 
+## Working out what to change next
+
+`scripts/Get-ResearchBriefing.ps1` prints, read-only, how far this fork is ahead of and behind
+`chaogei/1Remote-Plus` and `1Remote/1Remote`, the version and target frameworks, the direct NuGet
+dependencies, and the list of upstream, security and competitor sources worth reading. It fetches
+remote-tracking refs and does nothing else — no commits, no pushes, no tags. `-Offline` skips the fetch.
+
+`.agent_workspace/AUTO_ITERATION.md` is the runbook that goes with it, written for the AI agents that work
+on this fork in rounds: research sources, priorities, the things never to touch, how to verify a change
+when the test suite cannot run on the machine doing the work, and who merges. Every round is recorded in
+`.agent_workspace/ITERATION_LOG.md`, including what was rejected and why, so the same idea does not get
+re-litigated each time.
+
 ## Security-relevant behaviour
 
 See the "Security notes" section of [readme.md](readme.md) for the threat model: what the placeholder
