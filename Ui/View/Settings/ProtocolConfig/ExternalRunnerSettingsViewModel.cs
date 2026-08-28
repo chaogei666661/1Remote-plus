@@ -34,23 +34,32 @@ public class ExternalRunnerSettingsViewModel : NotifyPropertyChangedBase, IDispo
             {
                 AutoArguments();
             }
-            RaisePropertyChanged(nameof(HealthIssues));
-            RaisePropertyChanged(nameof(HealthVisibility));
+            RefreshHealth();
             IoC.Get<ProtocolConfigurationService>().Save();
         };
         ExternalRunner.PropertyChanged += _propertyChangedHandler;
+        RefreshHealth();
     }
 
     /// <summary>
-    /// What is wrong with this runner, in words, refreshed whenever any of it is edited. Everything here
-    /// used to surface only as a modal at connect time, or — for a mistyped macro — not at all.
+    /// What is wrong with this runner, in words. Everything here used to surface only as a modal at
+    /// connect time, or — for a mistyped macro — not at all.
+    ///
+    /// Held in a field rather than computed per read: the inspection asks the file system whether the
+    /// program is there, and the panel reads this and <see cref="HealthVisibility"/> both.
     /// </summary>
-    public List<string> HealthIssues =>
-        RunnerHealth.Inspect(ExternalRunner)
-            .Select(issue => _languageService.Translate(issue.TranslationKey, issue.Detail, TranslateWhere(issue.Where)))
-            .ToList();
+    public List<string> HealthIssues { get; private set; } = new List<string>();
 
     public Visibility HealthVisibility => HealthIssues.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+    private void RefreshHealth()
+    {
+        HealthIssues = RunnerHealth.Inspect(ExternalRunner)
+            .Select(issue => _languageService.Translate(issue.TranslationKey, issue.Detail, TranslateWhere(issue.Where)))
+            .ToList();
+        RaisePropertyChanged(nameof(HealthIssues));
+        RaisePropertyChanged(nameof(HealthVisibility));
+    }
 
     private string TranslateWhere(string where) =>
         where.Length == 0 ? "" : _languageService.Translate("runner_health_in_" + where);
