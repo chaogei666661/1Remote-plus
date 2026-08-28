@@ -8,6 +8,144 @@ saying why the reason no longer holds.
 
 ---
 
+## 2026-08-28 — the upload scan stops losing the whole transfer, and starts saying what it left out
+
+Branch `cursor/upload-scan-unreadable-folders-d60d`, off `main` at `f7d73fe0` (v1.3.0.23). Opened on the
+release, as §0 says. The previous round's "Not taken" was the brief: `Enumerate` aborting on one unreadable
+subfolder.
+
+### What the research turned up
+
+**Nothing to port and nothing to patch.** `1Remote/1Remote`'s newest release is still `1.3-prerelease`
+(2026-04-29); the newest stable is 1.2.1 from August 2025. `chaogei/1Remote-Plus`'s newest eight commits are
+the release plumbing this fork already has plus four bare `Model:` commits — the same answer as the last
+three rounds. `dotnet restore Ui/Ui.csproj` emits no `NU19xx`: no direct or transitive package has a live
+advisory.
+
+**So the work was where the last round pointed, and there was more of it than one bug.** Four things, all in
+the transfer pane, all of them the same shape: *the transfer finished, the panel said nothing, and something
+the user asked for is not on the far side.*
+
+**1. One folder the platform would not list cost the entire upload.** `LocalUploadScan.Enumerate` called
+`GetDirectories()` with nothing around it, so the first `UnauthorizedAccessException` left the whole call,
+landed in `TransmitTask.AddLocalDirectory`'s log-only `catch`, and the task went on to transmit an empty
+queue — success on screen, zero bytes sent. This is not an exotic input. Every Windows machine has folders
+their own owner cannot list:
+
+| Folder | Why it refuses |
+| --- | --- |
+| `C:\System Volume Information` | SYSTEM-only ACL |
+| `C:\$Recycle.Bin\S-1-5-21-…` | another account's bin |
+| `C:\Users\<someone else>` | another account's profile |
+| `C:\Documents and Settings` | junction with a deny-list ACE |
+
+So uploading a drive root — which the round before last had *just* made nameable — failed every single time,
+and so did uploading any folder with one such child anywhere below it. It is exactly what
+[run 33147128602](https://github.com/chaogei666661/1Remote-plus/actions/runs/33147128602) demonstrated on
+`windows-latest` before the fix round retired that test case.
+
+**2. The notice that was supposed to cover this kind of thing could not be read.** The status line is a
+`Border` of `Height="30"` holding one `TextBlock`; `LinksNotFollowed` was rendered with
+`string.Join(", ", …)` over the whole list. An ordinary Windows profile carries a dozen compatibility
+junctions (`Application Data`, `My Documents`, `Start Menu`, `Recent`, `SendTo`, …) and a drive-root upload
+can now leave hundreds of folders unread, so the string ran to tens of kilobytes of which one line was
+visible — and the visible line was names, not the count that tells the user something went wrong.
+
+**3. The duplicate check still swallows a file, and this time it is on purpose.** Ordinal-ignore-case was
+the right call for the upload direction and half-right for the download direction: an SFTP server is
+normally case-sensitive, so `Makefile` and `makefile` in one remote directory are two different files, and
+Windows can hold exactly one of them. Which one wins is not the interesting part. That there is a second one
+is, and nothing said so. The last round wrote this down as "worth its own change rather than a rider"; this
+is that change.
+
+**4. `~TransmitTask()` was still there.** Also written down last round. `TryCancel()` raises
+`PropertyChanged` — a WPF binding update — and invokes `OnTaskEnd`, the transfer pane's handler. On the
+finaliser thread neither is legal, and an exception out of a finaliser ends the process with no dialog and
+no log line.
+
+### Taken
+
+| # | Change | Why this one |
+| --- | --- | --- |
+| 1 | `TransferNoticeText`: a notice names a few and counts the rest | Prerequisite for the rest: three more notices into a one-line control would have made the existing one worse |
+| 2 | `LocalUploadScan`: catch per directory, report `FoldersNotRead` | The gap the last round left. A silent, total upload failure on the most ordinary Windows folder layout there is |
+| 3 | `TransmitItemKeySet.CaseOnlyDuplicates` | A downloaded file that does not arrive and is not mentioned |
+| 4 | Remove `~TransmitTask()` | A process kill with no diagnostic, waiting for the right GC timing |
+
+### Rejected, and why
+
+| Idea | Why not this round |
+| --- | --- |
+| **Move to .NET 10** | Out of scope by instruction again, and the instruction is right that it is not a rider on a transfer round. Support for .NET 9 ends **2026-11-10**, which is now about ten weeks out. It has been the top of "for the next round" four rounds running and it needs a round that does nothing else |
+| **`chmod`-based tests for the unreadable folder** | Works here and is meaningless on CI: Windows has no `chmod`, and the equivalent is an ACL edit through `System.Security.AccessControl`, which does not exist on Linux. That is precisely the "only holds on one platform" shape that turned `main` red last round. The seam (`ILocalDirectoryLister`) stages the refusal instead, and the real `chmod` version was run **outside** the repository to confirm the staged failure matches the platform's |
+| **Skip an unreadable folder entirely rather than create it empty** | The folder does exist. Leaving it out of the listing would be a second, quieter lie, and the download side already creates an unwalkable directory as an empty one |
+| **Abort the upload when a folder cannot be read** | That is the old behaviour with a message bolted on. A user uploading `C:\Users\me` wants the 40 000 files they can read, not a refusal because `Application Data` exists |
+| **Catch every exception per directory** | `IsListingFailure` takes `UnauthorizedAccessException`, `IOException` and `SecurityException` — access, deletion mid-scan, path length, a share going away, a drive being pulled. An `OutOfMemoryException` is about the process, and absorbing it would upload a tree with holes in it and call that success. There is a test |
+| **Upload both `Makefile` and `makefile` under mangled names** | Renaming the user's file behind their back, rejected for the same reason the deceptive-name round rejected sanitising. And on upload the destination *can* hold both, so a rename would be wrong in the one direction it would help |
+| **Stop the transfer on a case collision** | It is one file out of a folder, and the other files are fine. A warning that names them lets the user fetch the odd one out by hand, which is the only thing that can be done anyway |
+| **Report the entries `IsSafeSegment` rejects during the walk** | A local name cannot contain a separator or a colon on Windows, so on the platform this app runs on the branch is unreachable. Adding a fourth notice for it would be code with no caller |
+| **Remove `~VmFileTransmitHost()` too** | It only calls `CancellationTokenSource.Cancel(false)` on a source that is never disposed and, by the time it could run, has no registered callbacks — so it cannot throw. Moving the cancel into `Release()` would be tidier but `Release()` is called from `Close()` while `ReConn()` does not re-create the source, so it is a behaviour change on a path nobody can exercise from here. Left alone deliberately |
+| **Make `TransmitTask` `IDisposable` to dispose the `CancellationTokenSource`** | Every caller would have to change, and a CTS with no timer and no wait handle taken does not need it. Separate decision |
+| **A `ToolTip` on the status line carrying the full list** | The list is now cut down before it reaches the property, so a tooltip would show the same truncated text. Making it show the whole list means a second property and a XAML change that cannot be tried here |
+| **Rework `scripts/watch-release-iteration.sh`** | Instructed not to unless it misreports. It does not: run for real this round it reported `idle` with `1 iteration branch(es) still ahead of main`, naming this branch, on top of a green v1.3.0.23 |
+| **Session tab mute / read-only / lock; RDP per-monitor selection** | Carried over for the fourth round. Still needs a human at a Windows keyboard |
+
+### What landed
+
+| Commit | |
+| --- | --- |
+| `45585008` | `fix(transfer): a notice that lists everything fills a one-line status bar with nothing` |
+| `95495b91` | `fix(sftp): one unreadable folder no longer cancels the entire upload` |
+| `e0be8659` | `fix(transfer): say which files the case rule swallowed instead of losing them quietly` |
+| `56d12959` | `fix(transfer): drop the finaliser that ran transfer-pane code on the GC thread` |
+
+New tests: `Tests/Utils/FileTransmit/TransferNoticeTextTests.cs` (13, new file),
+`Tests/Model/Protocol/FileTransmit/TransmitTaskFinalizerTests.cs` (1, new file),
+`LocalUploadScanTests.cs` 15 cases → 23, `TransmitItemKeySetTests.cs` 12 → 18.
+
+Three new language keys in both `en-us.xaml` and `zh-cn.xaml` (520 keys each, no key in one and not the
+other). `README.md` and `README.zh-CN.md` both updated for the two user-visible changes.
+
+### Verification
+
+`dotnet build Tests/Tests.csproj -c Debug -p:EnableWindowsTargeting=true` with SDK 9.0.317 — **0 errors,
+120 warnings**, which is the count `main` builds with.
+
+Level 2 of §7 for everything except the finaliser: a throwaway `net9.0` MSTest project compiling
+`TransferNoticeText.cs`, `LocalUploadScan.cs`, `TransmitItemKeySet.cs`, `DownloadPathGuard.cs` and the four
+test files by absolute path, with a no-op `TestInit`. **76 passed, 0 failed**, nothing excluded. Both new
+behaviours were checked against the bug they claim to catch:
+
+- With `IsListingFailure` forced to `false`, **6** of the new scan cases fail.
+- With the exact-pair check dropped from `TransmitItemKeySet.Add`, `AnIdenticalPairIsADuplicateAndIsNotReported`
+  fails — so the "do not cry wolf on a real duplicate" half is load-bearing.
+
+**The real refusal was also run, outside the repository.** A `chmod 000` directory under `/tmp`: before the
+fix, `Enumerate` threw `UnauthorizedAccessException` out of the whole call — the exact failure — and after
+it, the folder is skipped, named in `FoldersNotRead`, and the other four entries still come back. That file
+is not in the repository, because it can only pass on Unix and only for a non-root account.
+
+The finaliser removal is level 1 plus a shape assertion: the new test reads `Finalize`'s `DeclaringType`,
+which is `System.Object` when a type declares no finaliser and the type itself when it does — confirmed
+here on a two-class scratch program, since the assertion needs `TransmitTask` loaded and that needs the app.
+Its *behaviour* cannot be tested anywhere: it is a garbage collection nobody can schedule.
+
+Not executed anywhere: the `VmFileTransmitHost.AddTransmitTask` notice block, which needs a window. See the
+pull request for the manual steps.
+
+### For the next round
+
+1. **.NET 10.** Ten weeks to 2026-11-10. Own round, nothing else in it.
+2. An "allow legacy SSH algorithms" per-server toggle, so the remaining CBC / SHA-1 set can leave the default.
+3. `~VmFileTransmitHost()` — benign today for the reasons in the rejection table, but the same shape as the
+   finaliser this round removed, and it would stop being benign the moment anything registers on that token.
+4. The upload side's `IsSafeSegment` skip is silent. Unreachable on Windows today; if the app ever reads a
+   case-sensitive network mount it stops being unreachable.
+5. Session tab mute / read-only / lock, and RDP per-monitor selection — still waiting on a human at a
+   Windows keyboard.
+
+---
+
 ## 2026-08-28 — fix round: the upload-scan refusal case only refused on Linux
 
 Branch `cursor/fix-upload-scan-refusal-test-220f`, off `main` at `be003d3d`. No feature work: `main` was red.

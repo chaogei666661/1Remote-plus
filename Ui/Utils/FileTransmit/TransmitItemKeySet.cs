@@ -25,6 +25,15 @@ namespace _1RM.Utils.FileTransmit
     ///
     /// Ordinal-ignore-case, not ordinal: a Windows path that differs only in case is the same file, and
     /// that part of the old behaviour was right.
+    ///
+    /// <b>But it is only right half the time, and the other half is a lost file.</b> An SFTP server is
+    /// usually case-sensitive, so <c>Makefile</c> and <c>makefile</c> in the same remote directory are two
+    /// different files with two different sets of bytes. Downloading that directory queues the first and
+    /// silently discards the second — the local file system genuinely cannot hold both, so there is nothing
+    /// better to do with it, but there is something better to do about it than nothing.
+    /// <see cref="CaseOnlyDuplicates"/> is the list of destinations that were dropped for that reason, and
+    /// only that reason: a pair spelled exactly the same is a real duplicate (the user picked a folder and
+    /// then something inside it) and is not reported.
     /// </summary>
     public sealed class TransmitItemKeySet
     {
@@ -34,12 +43,36 @@ namespace _1RM.Utils.FileTransmit
         private readonly HashSet<(string Source, string Destination)> _seen =
             new HashSet<(string, string)>(PairComparer.Instance);
 
+        // The same pairs again, compared byte for byte, which is what tells a genuine duplicate apart from
+        // two files this machine cannot keep apart.
+        private readonly HashSet<(string Source, string Destination)> _exact =
+            new HashSet<(string, string)>();
+
+        private readonly List<string> _caseOnlyDuplicates = new List<string>();
+        private readonly HashSet<string> _caseOnlyDuplicatesSeen = new HashSet<string>(StringComparer.Ordinal);
+
+        /// <summary>
+        /// Destinations of items that were dropped because something already queued differs from them only
+        /// in letter case. Each one is a file that exists on the source and will not exist on the
+        /// destination. In order, without repeats.
+        /// </summary>
+        public IReadOnlyList<string> CaseOnlyDuplicates => _caseOnlyDuplicates;
+
         /// <summary>
         /// Records the pair and reports whether it is new. False means it has been queued already.
         /// </summary>
         public bool Add(string sourcePath, string destinationPath)
         {
-            return _seen.Add((sourcePath ?? "", destinationPath ?? ""));
+            var pair = (sourcePath ?? "", destinationPath ?? "");
+            if (_seen.Add(pair))
+            {
+                _exact.Add(pair);
+                return true;
+            }
+
+            if (!_exact.Contains(pair) && _caseOnlyDuplicatesSeen.Add(pair.Item2))
+                _caseOnlyDuplicates.Add(pair.Item2);
+            return false;
         }
 
         public bool Contains(string sourcePath, string destinationPath)

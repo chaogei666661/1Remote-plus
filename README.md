@@ -83,7 +83,8 @@ This fork branched off upstream in August 2026. Everything below is new here; up
   decomposed way. The extra file was dropped from the transfer without appearing anywhere. The check was
   also quadratic: a 20 000-file folder spent about 10 seconds, and a 50 000-file one about a minute, showing
   *Scanning* before a byte moved. Both now take milliseconds, and paths that differ only in case are still
-  treated as one file.
+  treated as one file — but the transfer panel now names the ones that were, because a case-sensitive server
+  can hold both `Makefile` and `makefile` and Windows cannot, so one of them is a file that did not arrive.
 
 **New features**
 
@@ -505,9 +506,18 @@ listed, junctions and symbolic links included. A link pointing back at a parent 
 that kept re-entering the same tree at a longer path each time until the platform gave out, and the upload
 then quietly did nothing; a link pointing anywhere else — `AppData`, a mapped drive, all of `C:\` — sent
 whatever was behind it to the remote server along with the folder you actually picked. A linked folder is now
-created empty on the far side and not descended into, and the transfer panel names the ones it stopped at.
+created empty on the far side and not descended into, and the transfer panel names the first few it stopped
+at and counts the rest — the status line is one row high, and an ordinary Windows profile carries a dozen
+compatibility junctions, so the full list used to fill it with the part you could already guess.
 Linked *files* are still uploaded: reading through one is what copying that file means. Uploading a whole
 drive works too, and lands in a folder named after its letter; it used to fail silently.
+
+**A folder Windows will not let you read no longer cancels the whole upload.** Every Windows machine has
+folders its owner cannot open — `C:\System Volume Information`, `$Recycle.Bin`, another account's directory
+under `C:\Users` — and one of them anywhere below the folder you picked used to end the scan with an
+exception that went to the log and nowhere else: the transfer reported success and sent nothing at all.
+Uploading a drive root hit this every time. The scan now skips the folder it could not list, uploads
+everything else, creates the skipped folder empty on the server, and names it in the transfer panel.
 
 **Temporary files.** Generated `.rdp` files and private-key copies are staged in a per-session directory that
 is removed when the session ends, rather than in the shared temp folder.
