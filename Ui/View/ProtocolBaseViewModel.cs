@@ -256,22 +256,73 @@ namespace _1RM.View
 
         private string _reachSkipReason = "";
 
+        /// <summary>
+        /// The last few sweeps for this server. A dot that is only green or red says the port is open,
+        /// which is the least interesting thing to know about a link you are about to type into.
+        /// </summary>
+        private readonly ConnectionQualityTracker _quality = new ConnectionQualityTracker();
+
+        private EConnectionQuality _reachQuality = EConnectionQuality.Unknown;
+        public EConnectionQuality ReachQuality
+        {
+            get => _reachQuality;
+            private set
+            {
+                if (SetAndNotifyIfChanged(ref _reachQuality, value))
+                    RaisePropertyChanged(nameof(ReachToolTip));
+            }
+        }
+
         public bool IsReachable => ReachState == EReachState.Online;
 
         public bool IsUnreachable => ReachState == EReachState.Offline;
 
-        public string ReachToolTip => ReachState switch
+        public string ReachToolTip
         {
-            EReachState.Online => IoC.Translate("reachability_online", ReachLatencyMs),
-            EReachState.Offline => IoC.Translate("reachability_offline"),
-            EReachState.Skipped => _reachSkipReason,
-            _ => IoC.Translate("reachability_unknown"),
-        };
+            get
+            {
+                switch (ReachState)
+                {
+                    case EReachState.Offline:
+                        return IoC.Translate("reachability_offline");
+                    case EReachState.Skipped:
+                        return _reachSkipReason;
+                    case EReachState.Online:
+                        var snapshot = _quality.Snapshot();
+                        // One sweep is a latency reading, not a quality reading; saying "0% loss" after a
+                        // single successful connect would be a claim the app has not earned yet.
+                        if (snapshot.Quality == EConnectionQuality.Unknown || snapshot.SampleCount < 2)
+                            return IoC.Translate("reachability_online", ReachLatencyMs);
+                        return IoC.Translate("connection_quality_" + snapshot.Quality.ToString().ToLowerInvariant())
+                               + Environment.NewLine
+                               + IoC.Translate("connection_quality_detail",
+                                   snapshot.AverageLatencyMs, snapshot.JitterMs, snapshot.LossPercent, snapshot.SampleCount);
+                    default:
+                        return IoC.Translate("reachability_unknown");
+                }
+            }
+        }
 
         public void SetReachability(EReachState state, int latencyMs, string skipReason)
         {
+            switch (state)
+            {
+                case EReachState.Online:
+                    _quality.Record(true, latencyMs);
+                    break;
+                case EReachState.Offline:
+                    _quality.Record(false, 0);
+                    break;
+                default:
+                    // Switched off, or a server that is never probed: the old window described a question
+                    // nobody is asking any more.
+                    _quality.Clear();
+                    break;
+            }
+
             _reachSkipReason = skipReason ?? "";
             ReachLatencyMs = latencyMs;
+            ReachQuality = _quality.Snapshot().Quality;
             ReachState = state;
         }
 

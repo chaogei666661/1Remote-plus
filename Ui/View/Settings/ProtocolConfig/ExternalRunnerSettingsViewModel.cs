@@ -1,12 +1,15 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
+using System.Linq;
 using System.Windows;
 using Newtonsoft.Json;
 using _1RM.Model.Protocol;
 using _1RM.Model.ProtocolRunner;
 using _1RM.Service;
 using _1RM.Utils;
+using Shawn.Utils;
 using Shawn.Utils.Interface;
 using Shawn.Utils.Wpf;
 using Shawn.Utils.Wpf.Controls;
@@ -14,7 +17,7 @@ using Shawn.Utils.Wpf.FileSystem;
 
 namespace _1RM.View.Settings.ProtocolConfig;
 
-public class ExternalRunnerSettingsViewModel : IDisposable
+public class ExternalRunnerSettingsViewModel : NotifyPropertyChangedBase, IDisposable
 {
     private readonly ILanguageService _languageService;
     private readonly PropertyChangedEventHandler? _propertyChangedHandler;
@@ -31,10 +34,35 @@ public class ExternalRunnerSettingsViewModel : IDisposable
             {
                 AutoArguments();
             }
+            RefreshHealth();
             IoC.Get<ProtocolConfigurationService>().Save();
         };
         ExternalRunner.PropertyChanged += _propertyChangedHandler;
+        RefreshHealth();
     }
+
+    /// <summary>
+    /// What is wrong with this runner, in words. Everything here used to surface only as a modal at
+    /// connect time, or — for a mistyped macro — not at all.
+    ///
+    /// Held in a field rather than computed per read: the inspection asks the file system whether the
+    /// program is there, and the panel reads this and <see cref="HealthVisibility"/> both.
+    /// </summary>
+    public List<string> HealthIssues { get; private set; } = new List<string>();
+
+    public Visibility HealthVisibility => HealthIssues.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+    private void RefreshHealth()
+    {
+        HealthIssues = RunnerHealth.Inspect(ExternalRunner)
+            .Select(issue => _languageService.Translate(issue.TranslationKey, issue.Detail, TranslateWhere(issue.Where)))
+            .ToList();
+        RaisePropertyChanged(nameof(HealthIssues));
+        RaisePropertyChanged(nameof(HealthVisibility));
+    }
+
+    private string TranslateWhere(string where) =>
+        where.Length == 0 ? "" : _languageService.Translate("runner_health_in_" + where);
 
     public void Dispose()
     {

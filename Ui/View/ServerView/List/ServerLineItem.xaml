@@ -240,7 +240,10 @@
                             Content="{Binding HoverNoteDisplayControl}"></ContentControl>
 
             <!--address, with the reachability dot in front of it: the dot is about that address, and it
-                stays collapsed unless probing is switched on, so nothing moves for anyone not using it-->
+                stays collapsed unless probing is switched on, so nothing moves for anyone not using it.
+                The colour is a ramp rather than two states - green, lime, amber, orange for a link that
+                answers but answers slowly or unevenly, red only for one that does not answer at all. The
+                triggers are ordered so that the last one to apply wins: quality first, then not reachable.-->
             <StackPanel Grid.Column="5" Orientation="Horizontal" Margin="5 0" VerticalAlignment="Center">
                 <Ellipse Width="7" Height="7" Margin="0 0 7 0" VerticalAlignment="Center"
                          ToolTip="{Binding ReachToolTip}">
@@ -253,6 +256,27 @@
                                     <Setter Property="Visibility" Value="Visible" />
                                     <Setter Property="Fill" Value="#2ECC71" />
                                 </DataTrigger>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding IsReachable}" Value="True" />
+                                        <Condition Binding="{Binding ReachQuality}" Value="Good" />
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Fill" Value="#9ACD32" />
+                                </MultiDataTrigger>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding IsReachable}" Value="True" />
+                                        <Condition Binding="{Binding ReachQuality}" Value="Fair" />
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Fill" Value="#F1C40F" />
+                                </MultiDataTrigger>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding IsReachable}" Value="True" />
+                                        <Condition Binding="{Binding ReachQuality}" Value="Poor" />
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Fill" Value="#E67E22" />
+                                </MultiDataTrigger>
                                 <DataTrigger Binding="{Binding IsUnreachable}" Value="True">
                                     <Setter Property="Visibility" Value="Visible" />
                                     <Setter Property="Fill" Value="#E74C3C" />
