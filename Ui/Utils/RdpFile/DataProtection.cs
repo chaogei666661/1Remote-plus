@@ -5,6 +5,7 @@ using System;
 using System.Runtime.InteropServices;
 using System.Security;
 using System.Text;
+using Shawn.Utils;
 #pragma warning disable CS8600
 #pragma warning disable CS8603
 #pragma warning disable CS8625
@@ -36,16 +37,25 @@ namespace _1RM.Utils.RdpFile
             CRYPTPROTECT_CRED_REGENERATE = 0x80
         }
 
+        /// <summary>
+        /// What a secret written to disk for this user is protected with.
+        ///
+        /// <c>CRYPTPROTECT_LOCAL_MACHINE</c> is deliberately absent. With it the blob is encrypted under the
+        /// machine key, which every account and every service on that machine can also use, so a .rdp
+        /// holding a saved password could be decrypted by any other user of the same PC. Without it the key
+        /// is the current user's, which is what mstsc itself uses when it saves a password and what makes a
+        /// .rdp file useless to anybody else.
+        /// </summary>
+        internal const CryptProtectDataFlags SECRET_FOR_THIS_USER = CryptProtectDataFlags.CRYPTPROTECT_UI_FORBIDDEN;
+
         internal static string ProtectData(string data, string name)
         {
-            return ProtectData(data, name,
-                CryptProtectDataFlags.CRYPTPROTECT_UI_FORBIDDEN | CryptProtectDataFlags.CRYPTPROTECT_LOCAL_MACHINE);
+            return ProtectData(data, name, SECRET_FOR_THIS_USER);
         }
 
         internal static byte[] ProtectData(byte[] data, string name)
         {
-            return ProtectData(data, name,
-                CryptProtectDataFlags.CRYPTPROTECT_UI_FORBIDDEN | CryptProtectDataFlags.CRYPTPROTECT_LOCAL_MACHINE);
+            return ProtectData(data, name, SECRET_FOR_THIS_USER);
         }
 
         internal static string ProtectData(string data, string name, CryptProtectDataFlags flags)
@@ -92,6 +102,9 @@ namespace _1RM.Utils.RdpFile
                     int errCode = Marshal.GetLastWin32Error();
                     StringBuilder buffer = new StringBuilder(256);
                     Win32Error.FormatMessage(Win32Error.FormatMessageFlags.FORMAT_MESSAGE_FROM_SYSTEM, IntPtr.Zero, errCode, 0, buffer, buffer.Capacity, IntPtr.Zero);
+                    // The message used to be formatted and then dropped, so a failure here was invisible
+                    // until the null return crashed the caller.
+                    SimpleLogHelper.Warning($"DataProtection: CryptProtectData failed with {errCode}, {buffer.ToString().Trim()}");
                 }
             }
             finally
@@ -115,7 +128,9 @@ namespace _1RM.Utils.RdpFile
     [SuppressUnmanagedCodeSecurity()]
     internal class DPAPI
     {
-        [DllImport("crypt32")]
+        // SetLastError, or the error code read after a failure is whatever the last unrelated call left
+        // behind rather than the reason CryptProtectData said no.
+        [DllImport("crypt32", SetLastError = true)]
         public static extern bool CryptProtectData(ref DATA_BLOB dataIn, string szDataDescr, IntPtr optionalEntropy, IntPtr pvReserved,
             IntPtr pPromptStruct, DataProtection.CryptProtectDataFlags dwFlags, ref DATA_BLOB pDataOut);
 

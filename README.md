@@ -128,7 +128,9 @@ This fork branched off upstream in August 2026. Everything below is new here; up
 - **A copied password is kept out of the Windows clipboard history and the cloud clipboard**, and is taken
   off the clipboard again after 30 seconds unless you have copied something else since.
 - **WebDAV backups refuse plain HTTP** unless it is explicitly enabled, with a warning next to the switch.
-- Generated **`.rdp` files and private-key copies are staged per session** and removed with the session.
+- Generated **`.rdp` files and private-key copies are staged per session** and removed with the session, and
+  the password they carry is **encrypted with your key rather than the machine's**, so no other account on
+  the same PC can read it.
 - The vault token is **written before it is returned**, and the write no longer blocks the UI thread.
 - **Cloning a server no longer shares its alternative credentials or arguments** with the original.
 - A **shutdown watchdog** names what is still running before the failsafe kills the process.
@@ -487,6 +489,16 @@ provides for exactly this (`ExcludeClipboardContentFromMonitorProcessing`, `CanI
 `CanUploadToCloudClipboard`), and is removed from the clipboard again after 30 seconds by default. If you
 have copied something else by then, that is left alone. Set the timeout to 0 under **Settings → General →
 Copied passwords** to go back to leaving it there.
+
+**A saved password in a generated `.rdp` is now readable only by you.** The `password 51:b:` line of a `.rdp`
+file is a DPAPI blob, and this app used to produce it with `CRYPTPROTECT_LOCAL_MACHINE` — encrypted under the
+*machine* key, which every account and every service on that PC can also use. Any other user of a shared
+admin workstation, a jump box or an RDS host who could read the file could therefore read the password out of
+it; user-scoped protection, which is what mstsc itself writes, gives them nothing. The flag is gone, so a
+`.rdp` written by 1Remote behaves like one saved by Remote Desktop Connection: it carries a password for the
+account that produced it and prompts for everybody else. This applies to the temporary file each mstsc
+session is launched from and to the one the **Export \*.rdp** action writes. If DPAPI refuses outright, the
+file is now written without a password line and mstsc asks, instead of the connect dying on the spot.
 
 **`cmd://` external secrets are a shell-out.** A password field may hold `cmd://<command line>`, which is run
 through `cmd.exe` at connect time and whose output becomes the secret. That makes any writable data source —
