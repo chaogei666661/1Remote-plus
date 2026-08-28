@@ -1,11 +1,20 @@
 # Runbook for the next iteration agent
 
-You are one round of a loop. A parent agent wakes on a timer and starts you with a task; you research,
-pick a small number of changes, implement them, open a pull request, and report back. The parent verifies
-and merges. This file is the part that does not have to be reinvented each time.
+You are one round of a loop. You research, pick a small number of changes, implement them, open a pull
+request, and report back. The parent verifies and merges. This file is the part that does not have to be
+reinvented each time.
 
 Read it before you plan. It is normative: the "Never" list in particular is there because breaking one of
 those items has cost a previous round its work.
+
+## 0. What starts a round
+
+**The loop is triggered by a release, not by a clock.** As soon as the Build/Publish CI on `main` goes green
+*and* the GitHub release is published, the parent starts the next cloud agent immediately. There is no fixed
+interval and no six-hour timer.
+
+If CI on `main` fails, the next round is a fix round: repair the build first and publish it. No feature round
+opens on a red `main`.
 
 ---
 
@@ -88,9 +97,9 @@ A round that is entirely category 4 is a fine round, as long as nothing in 1–3
 - **Never merge your own pull request** or turn on auto-merge. The parent merges.
 - **Never leave the branch you were told to work on** unless you were asked to.
 - **Never nest subagents without being asked.** One round, one agent, doing its own searching and editing.
-- **Never add CI that pushes, tags, releases, or calls a paid API.** The loop is driven by the parent's
-  timer, not from inside the repository. A workflow that summons agents needs an external key and burns
-  budget with no one watching.
+- **Never add CI that pushes, tags, releases, or calls a paid API.** The loop is driven from outside the
+  repository: the parent starts the next round when `main`'s Build/Publish CI is green and the release is
+  out (see §0). A workflow that summons agents needs an external key and burns budget with no one watching.
 - **Never claim something was tested when it was compiled.** See §7.
 
 ---
@@ -221,6 +230,8 @@ The parent agent, not you:
 
 `main` pushes trigger a version bump and a GitHub release, so a merge is a publish. Do not merge anything
 whose Windows behaviour nobody has looked at.
+
+That publish is also what starts the next round — see §0. The loop closes here.
 
 ---
 
