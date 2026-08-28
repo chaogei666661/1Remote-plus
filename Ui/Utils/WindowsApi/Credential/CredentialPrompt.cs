@@ -288,10 +288,14 @@ namespace _1RM.Utils.WindowsApi.Credential
             // Call LogonUser to obtain a handle to an access token. 
             bool returnValue = false;
             NativeMethods.SafeTokenHandle? tokenHandle = null;
-            if (userName.IndexOf("\\") > 0)
+            // Ordinal, because the overload without it searches by the current culture's collation: ICU's
+            // Thai one treats a backslash as ignorable and answers 0, so on a Thai desktop the DOMAIN\
+            // prefix was never stripped and LogonUser was handed a user name it cannot resolve.
+            var domainSeparator = userName.IndexOf("\\", StringComparison.Ordinal);
+            if (domainSeparator > 0)
             {
-                userName = userName.Substring(userName.IndexOf("\\") + 1);
-                //var userName2 = userName.Substring(userName.IndexOf("\\") + 1);
+                userName = userName.Substring(domainSeparator + 1);
+                //var userName2 = userName.Substring(domainSeparator + 1);
                 //returnValue = NativeMethods.LogonUser(userName2, domain, userPassword,
                 //    NativeMethods.LogonTypes.LOGON32_LOGON_INTERACTIVE, NativeMethods.LogonProvider.LOGON32_PROVIDER_DEFAULT,
                 //    out tokenHandle);
