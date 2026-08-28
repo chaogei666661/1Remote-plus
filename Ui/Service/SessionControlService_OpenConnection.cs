@@ -137,6 +137,7 @@ namespace _1RM.Service
             host.OnClosed += OnRequestCloseConnection;
             host.OnFullScreen2Window += this.MoveSessionToTabWindow;
             this.MoveSessionToFullScreen(host.ConnectionId);
+            AuditSessionOpened(host.ConnectionId);
             host.Conn();
             SimpleLogHelper.Debug($@"Start Conn: {server.DisplayName}({server.GetHashCode()}) by host({host.GetHashCode()}) with full");
         }
@@ -173,6 +174,7 @@ namespace _1RM.Service
                     _connectionId2Hosts.TryAdd(host.ConnectionId, host);
                 }
 
+                AuditSessionOpened(host.ConnectionId);
                 host.Conn();
                 tab.WindowState = tab.WindowState == WindowState.Minimized ? WindowState.Normal : tab.WindowState;
                 tab.Activate();
@@ -286,6 +288,10 @@ namespace _1RM.Service
             if (this.ActivateOrReConnIfServerSessionIsOpened(protocolClone))
                 return "";
 
+            // From here on the attempt is going to reach the network, and the address is still the real one:
+            // ApplyTo below rewrites it to a loopback port when a proxy is in play. Everything after this
+            // point either opens a session or reports why it did not.
+            AuditConnectStarted(protocolClone);
 
             // run script before connected
             {
@@ -293,6 +299,7 @@ namespace _1RM.Service
                 if (0 != code)
                 {
                     MessageBoxHelper.ErrorAlert($"Script ExitCode = {code}, connection abort!");
+                    AuditConnectFailed(protocolClone, $"PreConnectScriptExitCode={code}");
                     return "";
                 }
             }
@@ -301,11 +308,15 @@ namespace _1RM.Service
             // above, so both still see the real address, and before every protocol dispatch below, so all of
             // them connect to the loopback endpoint instead.
             if (IoC.Get<ProxyService>().ApplyTo(protocolClone) == EProxyApplyResult.Abort)
+            {
+                AuditConnectFailed(protocolClone, "ProxyUnavailable");
                 return "";
+            }
 
             // dispatch for specified protocol
             if (protocolClone is RdpApp rdpApp)
             {
+                AuditSessionOpened(protocolClone.BuildConnectionId());
                 ConnectRemoteApp(rdpApp);
                 return "";
             }
@@ -313,6 +324,7 @@ namespace _1RM.Service
             {
                 if (rdp.IsNeedRunWithMstsc())
                 {
+                    AuditSessionOpened(protocolClone.BuildConnectionId());
                     ConnectRdpByMstsc(rdp);
                     return "";
                 }
@@ -351,6 +363,11 @@ namespace _1RM.Service
                 {
                     var process = Process.Start(tmp.Item2, localApp.GetArguments(false));
                     AddUnHostingWatch(process, localApp);
+                    AuditSessionOpened(protocolClone.BuildConnectionId());
+                }
+                else
+                {
+                    AuditConnectFailed(protocolClone, "ExecutableNotFound");
                 }
                 return "";
             }
@@ -362,6 +379,7 @@ namespace _1RM.Service
             if (runner.IsRunWithoutHosting())
             {
                 runner.RunWithoutHosting(protocolClone);
+                AuditSessionOpened(protocolClone.BuildConnectionId());
             }
             else
             {

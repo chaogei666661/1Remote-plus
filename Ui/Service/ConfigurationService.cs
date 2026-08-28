@@ -114,6 +114,20 @@ namespace _1RM.Service
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.Populate)]
         public int SessionLogRetentionMegabytes = 1024;
 
+        /// <summary>
+        /// Write a line to the local audit log for every connection attempt. On by default: it records only
+        /// what the app already knew — server, address, account, outcome — never a secret, and being able to
+        /// answer "who reached that host and when" after the fact is worth more than the few kB it costs.
+        /// </summary>
+        [DefaultValue(true)]
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Populate)]
+        public bool AuditConnections = true;
+
+        /// <summary>How long audit day files are kept. 0 keeps them indefinitely.</summary>
+        [DefaultValue(90)]
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Populate)]
+        public int AuditRetentionDays = 90;
+
         public int LogLevel = (int)SimpleLogHelper.EnumLogLevel.Warning;
         #endregion
 
