@@ -114,6 +114,27 @@ repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 [ -n "$repo_root" ] || fail "not inside a git working copy"
 cd "$repo_root" || fail "cannot enter $repo_root"
 
+# Read the repository off `origin` rather than asking `gh`. The research briefing in the runbook tells
+# every agent to add `upstream` and `original` remotes, and with those present `gh repo view` answers
+# with the parent fork — so the watch reported the parent's releases while reading this fork's branches,
+# and fired a round for a release that is not ours. Branches already come from `origin`; so does this.
+repo_from_origin() {
+    local url
+    url="$(git remote get-url origin 2>/dev/null || true)"
+    [ -n "$url" ] || return 0
+    url="${url%.git}"
+    url="${url%/}"
+    case "$url" in
+        *://*)  url="${url#*://}"; url="${url#*@}"; url="${url#*/}" ;;  # https://host/o/n, ssh://git@host/o/n
+        *:*)    url="${url#*:}" ;;                                     # git@host:o/n
+    esac
+    # Whatever the form, the last two path components are the owner and the name.
+    printf '%s' "$url" | awk -F/ 'NF>=2 { print $(NF-1) "/" $NF }'
+}
+
+if [ -z "$repo" ]; then
+    repo="$(repo_from_origin)"
+fi
 if [ -z "$repo" ]; then
     repo="$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || true)"
 fi

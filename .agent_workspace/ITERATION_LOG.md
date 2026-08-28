@@ -111,14 +111,24 @@ Both were checked against the bug they claim to catch:
 - With the comparer put back to `CurrentCultureIgnoreCase`, five of the twelve key-set tests fail — the four
   collisions above, and the 20 000-item case, which takes 8 seconds.
 
-`scripts/watch-release-iteration.sh` was driven through **22 cases** by a stubbed `gh`, covering every
+`scripts/watch-release-iteration.sh` was driven through **28 cases** by a stubbed `gh`, covering every
 decision it can reach: green-release-fires-once, `--peek` not consuming, a failed run, a cancelled run,
 newest-run-wins over list order, a run still in progress, no run, no release, a live branch blocking, a stale
 branch not blocking, `--stale-hours 0`, drafts and pre-releases being skipped, newest-`publishedAt`-wins over
-list order, `--seed`, a `gh` failure reading as 2 rather than 0, `--json` validity, `--help`, and an unknown
-option. **22 passed, 0 failed.** It was also run for real against this repository, where it correctly
-reported `10` on a fresh state, `0` on the next poll, and a stale `cursor/*` branch as not blocking. Neither
-harness is in the repository.
+list order, `--seed`, a `gh` failure reading as 2 rather than 0, `--json` validity, `--help`, an unknown
+option, and six ways of spelling the `origin` URL. **28 passed, 0 failed.**
+
+It was also run for real against this repository, where it reported `10` on a fresh state, `0` on the next
+poll, a stale `cursor/*` branch as not blocking, and — once this round's own branch was pushed — `0` with
+that branch named as the thing in flight.
+
+**Running it for real is what caught its one real bug.** After the research step added the `upstream` and
+`original` remotes the runbook's §2 asks for, `gh repo view` started answering with the *parent fork*: the
+watch read this fork's branches while reporting the parent fork's releases, and would have opened a round
+for a release that is not ours. The repository now comes from `origin`, parsed out of the remote URL, which
+is where the branch list was coming from all along. Six of the 28 cases are that.
+
+Neither harness is in the repository.
 
 Not executed anywhere: the one line of view-model wiring that turns `TransmitTask.LinksNotFollowed` into an
 `IoMessage`. See the pull request for the manual steps.
