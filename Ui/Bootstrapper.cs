@@ -7,7 +7,9 @@ using _1RM.Service;
 using _1RM.Service.Audit;
 using _1RM.Service.DataSource;
 using _1RM.Service.Locality;
+using _1RM.Utils;
 using _1RM.Utils.Proxy;
+using _1RM.Utils.SessionScript;
 using _1RM.Utils.Tracing;
 using _1RM.View;
 using _1RM.View.ErrorReport;
@@ -106,6 +108,14 @@ namespace _1RM
             // dial a bastion — auto-started port forwards do that from OnLaunch.
             SshHostKeyGate.Verify = (host, port, hostKey, detail) =>
                 IoC.Get<HostTrustService>().VerifyOrAsk("ssh", host, port, HostTrustService.Fingerprint(hostKey), detail);
+            // Same reasoning for the session scripts: the store refuses until a prompt is wired, and an
+            // auto-connected server runs its before-connect script without anyone asking for it.
+            SessionScriptTrustStore.StorePathProvider = () => AppPathHelper.Instance.SessionScriptTrustJsonPath;
+            SessionScriptTrustStore.Confirm = (command, kind) => MessageBoxHelper.Confirm(
+                IoC.Translate(kind == EScriptKind.BeforeConnect
+                    ? "session_script_trust_before"
+                    : "session_script_trust_after", command),
+                title: IoC.Translate("session_script_trust_title"));
             AppInitHelper.InitOnConfigure();
             _desktopResolutionWatcher.OnDesktopResolutionChanged += () =>
             {

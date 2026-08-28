@@ -75,6 +75,13 @@ namespace _1RM.Service
         /// See <see cref="Utils.ExternalSecret.ExternalSecretTrustStore"/>.
         /// </summary>
         public string ExternalSecretTrustJsonPath => Path.Combine(BaseDirPathForLocality, ".locality", "known_commands.json");
+        /// <summary>
+        /// The before-connect / after-disconnect scripts the user has agreed to run. Locality for the same
+        /// reason as the one above: the server list those commands live in may be shared, the approval to
+        /// execute them is about this machine alone.
+        /// See <see cref="Utils.SessionScript.SessionScriptTrustStore"/>.
+        /// </summary>
+        public string SessionScriptTrustJsonPath => Path.Combine(BaseDirPathForLocality, ".locality", "known_session_scripts.json");
         public string LocalityIconDirPath => Path.Combine(BaseDirPathForLocality, ".icons");
         /// <summary>Where recorded terminal output goes when no folder was chosen in the settings.</summary>
         public string SessionLogDirPath => Path.Combine(BaseDirPathForLocality, ".sessionlogs");

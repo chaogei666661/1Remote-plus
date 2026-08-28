@@ -123,6 +123,8 @@ This fork branched off upstream in August 2026. Everything below is new here; up
   of quietly enciphering real passwords under a publicly known key.
 - **`cmd://` external secrets need a per-machine approval** before the command is ever run, so a tampered
   database or an imported profile cannot turn a password field into code execution.
+- **Pre- and post-connect scripts need the same approval**, so a server list somebody else can write to
+  cannot run a command on your desktop the next time you open the entry.
 - **WebDAV backups refuse plain HTTP** unless it is explicitly enabled, with a warning next to the switch.
 - Generated **`.rdp` files and private-key copies are staged per session** and removed with the session.
 - The vault token is **written before it is returned**, and the write no longer blocks the UI thread.
@@ -478,7 +480,18 @@ through `cmd.exe` at connect time and whose output becomes the secret. That make
 a shared SQLite file, a compromised MySQL/PostgreSQL source, a restored backup, an imported mRemoteNG file —
 a potential code-execution vector. Each distinct command has to be approved once on this machine before it
 will ever run, and approvals are stored locally in `.locality/known_commands.json`; they never travel with
-the database. Pre/post-connect scripts are the same class of feature and carry the same caveat.
+the database.
+
+**Pre- and post-connect scripts are gated the same way.** **Script before connect** and **Script after
+disconnected** are command lines run with your account on every connect and every disconnect — and with
+*Hide the window*, with nothing on screen to notice. They are ordinary columns of the server list, so a
+shared database, a network-share SQLite file or a synced profile can carry a command you never typed, and
+opening the entry you open every morning is enough to run it. Each distinct command line is now approved
+once on this machine before it runs, and approvals live in `.locality/known_session_scripts.json`, salted
+with the machine and account so a store that travels approves nothing where it lands. Saving a server in the
+editor, or pressing its **Test** button, counts as approving what is in the field — you are looking at it.
+Refusing a before-connect script abandons the connection; refusing an after-disconnect one just skips the
+command.
 
 **An import says what it is bringing in.** Three fields of a server entry are command lines this app runs on
 *your* machine, with *your* account: **Script before connect**, **Script after disconnected**, and a **Local

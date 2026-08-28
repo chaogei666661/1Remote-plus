@@ -6,6 +6,7 @@ using _1RM.Service.DataSource.DAO;
 using _1RM.Service.DataSource.Model;
 using _1RM.Service.Locality;
 using _1RM.Utils;
+using _1RM.Utils.SessionScript;
 using _1RM.Utils.Tracing;
 using _1RM.View.Editor.Forms;
 using _1RM.View.Editor.Forms.AlternativeCredential;
@@ -342,6 +343,12 @@ namespace _1RM.View.Editor
                     {
                         try
                         {
+                            // Saving a server whose script fields are on screen is the person at this
+                            // keyboard consenting to them. Without this the trust gate would ask about a
+                            // command line the user had just finished typing.
+                            SessionScriptTrustStore.Approve(Server.CommandBeforeConnected);
+                            SessionScriptTrustStore.Approve(Server.CommandAfterDisconnected);
+
                             var ret = Result.Success();
                             // bulk edit
                             if (IsBuckEdit)
