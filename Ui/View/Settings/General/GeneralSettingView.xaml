@@ -297,6 +297,27 @@
                             </StackPanel>
                         </Grid>
 
+                        <!-- Diagnostics bundle -->
+                        <Grid Style="{StaticResource GridOneRow}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" SharedSizeGroup="GeneralCol1"></ColumnDefinition>
+                                <ColumnDefinition MinWidth="260" SharedSizeGroup="GeneralCol2"></ColumnDefinition>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource TextBlockTitleColumn}" Width="160"
+                                       Text="{DynamicResource diagnostics_title}" />
+                            <StackPanel Grid.Column="1">
+                                <TextBlock MaxWidth="420" TextWrapping="Wrap"
+                                           Opacity="0.65" LineHeight="17"
+                                           FontSize="{DynamicResource GlobalFontSizeSmall}"
+                                           Foreground="{DynamicResource BackgroundTextBrush}"
+                                           Text="{DynamicResource diagnostics_hint}" />
+                                <Button Height="26" MinWidth="150" Margin="0 8 0 0" HorizontalAlignment="Left"
+                                        Style="{StaticResource GlassGhostButtonStyle}"
+                                        Command="{Binding CmdExportDiagnostics}"
+                                        Content="{DynamicResource diagnostics_export}" />
+                            </StackPanel>
+                        </Grid>
+
                         <!-- Session icon in window -->
                         <Grid Style="{StaticResource GridOneRow}">
                             <Grid.ColumnDefinitions>

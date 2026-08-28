@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Windows;
 using _1RM.Service;
 using _1RM.Service.Audit;
+using _1RM.Service.Diagnostics;
 using _1RM.Utils;
 using _1RM.Utils.Tracing;
 using Shawn.Utils;
@@ -296,6 +297,27 @@ namespace _1RM.View.Settings.General
         });
 
         #endregion
+
+        private RelayCommand? _cmdExportDiagnostics;
+        public RelayCommand CmdExportDiagnostics => _cmdExportDiagnostics ??= new RelayCommand(_ =>
+        {
+            var path = SelectFileHelper.SaveFile(
+                title: IoC.Translate("diagnostics_export"),
+                filter: "Zip|*.zip",
+                selectedFileName: DiagnosticsBundle.SuggestedFileName());
+            if (string.IsNullOrEmpty(path)) return;
+
+            try
+            {
+                DiagnosticsBundle.Create(path!);
+                MessageBoxHelper.Info(IoC.Translate("diagnostics_export_done", path!));
+            }
+            catch (Exception e)
+            {
+                UnifyTracing.Error(e);
+                MessageBoxHelper.ErrorAlert(e.Message);
+            }
+        });
 
 
         public bool ShowSessionIconInSessionWindow
