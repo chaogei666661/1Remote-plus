@@ -7,6 +7,7 @@ using _1RM.Service;
 using _1RM.Service.Audit;
 using _1RM.Service.DataSource;
 using _1RM.Service.Locality;
+using _1RM.Utils.Proxy;
 using _1RM.Utils.Tracing;
 using _1RM.View;
 using _1RM.View.ErrorReport;
@@ -101,6 +102,10 @@ namespace _1RM
             // Root ViewModel is launched.
             // Configure your services, etc, in here
             IoC.Init(this.Container);
+            // SshHostKeyGate refuses everything until this runs, so it has to happen before anything can
+            // dial a bastion — auto-started port forwards do that from OnLaunch.
+            SshHostKeyGate.Verify = (host, port, hostKey, detail) =>
+                IoC.Get<HostTrustService>().VerifyOrAsk("ssh", host, port, HostTrustService.Fingerprint(hostKey), detail);
             AppInitHelper.InitOnConfigure();
             _desktopResolutionWatcher.OnDesktopResolutionChanged += () =>
             {

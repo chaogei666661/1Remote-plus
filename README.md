@@ -94,8 +94,8 @@ This fork branched off upstream in August 2026. Everything below is new here; up
 - **Standing port forwards** — local, remote and dynamic (SOCKS) SSH tunnels that run independently of any
   session and can start with the app.
 - **Backup and restore**, plus optional upload of the same archive to a **WebDAV** folder.
-- **Host identity verification**, on by default: RDP certificates, SSH host keys on SFTP and FTPS
-  certificates are checked against a remembered fingerprint, with an explicit per-server opt-out.
+- **Host identity verification**, on by default: RDP certificates, SSH host keys on SFTP and on jump hosts,
+  and FTPS certificates are checked against a remembered fingerprint, with an explicit per-server opt-out.
 - **Passwords from a password manager** at connect time, via a `cmd://` reference to any CLI.
 - **Connection quality indicator** — an optional timer that grades each visible server on round-trip time,
   jitter and unanswered checks, not just up or down.
@@ -486,6 +486,14 @@ explicitly enabled in the backup settings, which is only ever reasonable on a lo
 
 **SFTP and FTPS verify host identity** on first use and refuse silently changed identities; accepted
 fingerprints live in `.locality/known_hosts.json`.
+
+**So does the SSH jump host.** The bastion was the one SSH connection this app makes itself, and it was the
+one it did not check: the underlying library accepts any host key unless the caller refuses, and nothing
+refused. Its password — or the passphrase-unlocked private key — was offered to whatever answered on that
+address, and because every proxied session and every standing port forward rides inside that one transport,
+intercepting a single handshake yielded all of them. A jump host now asks on first use like everything else
+and is remembered in the same `known_hosts.json`, keyed separately from the same machine reached as an SFTP
+server. Expect one prompt per bastion after upgrading; an auto-started port forward will ask at launch.
 
 **Downloads stay in the folder you chose.** A recursive download builds every local path out of names the
 server supplied, and neither protocol stops a server from answering a listing with `..\..\Startup\x.exe` or
