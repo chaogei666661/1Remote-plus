@@ -422,6 +422,12 @@ namespace _1RM.Service
             {
                 if (!CanSave) return;
                 CanSave = false;
+                // try/finally, because every exit from here used to leave CanSave false for good: a failed
+                // directory creation returned early, and a throw out of the serializer or of
+                // AdditionalSourcesSaveToProfile propagated. After either, Save() returned at its first line
+                // for the rest of the session and every subsequent settings change was discarded without a
+                // word — the user only found out at the next launch.
+                try
                 {
                     var fi = new FileInfo(AppPathHelper.Instance.ProfileJsonPath);
 
@@ -442,17 +448,27 @@ namespace _1RM.Service
                     var json = JsonConvert.SerializeObject(this._cfg, Formatting.Indented);
                     if (json != _lastSavedJson || !File.Exists(AppPathHelper.Instance.ProfileJsonPath))
                     {
-                        RetryHelper.Try(() =>
+                        // Only remember it once it is actually on disk. Recording the attempt made a failed
+                        // write permanent: the next Save saw the same content, took the "nothing changed"
+                        // path, and the profile stayed at whatever it held before the failure.
+                        var written = RetryHelper.Try(() =>
                         {
                             File.WriteAllText(AppPathHelper.Instance.ProfileJsonPath, json, Encoding.UTF8);
                         }, actionOnError: exception => UnifyTracing.Error(exception));
-                        _lastSavedJson = json;
+                        _lastSavedJson = written ? json : "";
                     }
+
+                    DataSourceService.AdditionalSourcesSaveToProfile(AppPathHelper.Instance.ProfileAdditionalDataSourceJsonPath, AdditionalDataSource);
                 }
-
-                DataSourceService.AdditionalSourcesSaveToProfile(AppPathHelper.Instance.ProfileAdditionalDataSourceJsonPath, AdditionalDataSource);
-
-                CanSave = true;
+                catch (Exception e)
+                {
+                    SimpleLogHelper.Error(e);
+                    UnifyTracing.Error(e);
+                }
+                finally
+                {
+                    CanSave = true;
+                }
             }
         }
 

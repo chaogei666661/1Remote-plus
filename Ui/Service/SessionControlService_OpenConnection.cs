@@ -153,7 +153,13 @@ namespace _1RM.Service
 
             // Outside the lock on purpose: creating a window pumps the dispatcher.
             var tab = this.GetOrCreateTabWindow(assignTabToken);
-            if (tab.IsClosing) return "";
+            if (tab.IsClosing)
+            {
+                // Closes the attempt the audit log opened. Without this the entry stays in flight and the
+                // attempt reads as neither succeeded nor failed.
+                AuditConnectFailed(protocol, "TabWindowClosing");
+                return "";
+            }
 
             Execute.OnUIThreadSync(() =>
             {
