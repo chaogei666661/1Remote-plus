@@ -667,8 +667,13 @@ From the **+** menu above the server list:
 - **Import \*.rdp** — a Remote Desktop file.
 - **Import PRemoteM db** — a database from the app's earlier name.
 
-**Export** writes the currently selected servers to JSON. Individual RDP entries can also be exported as
-`.rdp` from their action menu.
+**Export** writes the currently selected servers to JSON. The suggested name is
+`1Remote-servers-YYYYMMDD-HHmmss.json`, on a 24-hour clock and a Gregorian year — it used to be a bare
+twelve-hour stamp with no AM/PM, so a morning export and an evening one were offered the same name and the
+second overwrote the first. Individual RDP entries can also be exported as `.rdp` from their action menu.
+
+The export holds every password in cleartext. It is behind the second-factor prompt and the dialog says so;
+treat the file the way you would treat the passwords in it.
 
 ## Appearance: themes, frosted glass, language
 

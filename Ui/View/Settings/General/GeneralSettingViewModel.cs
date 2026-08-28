@@ -279,7 +279,7 @@ namespace _1RM.View.Settings.General
             var path = SelectFileHelper.SaveFile(
                 title: IoC.Translate("audit_export"),
                 filter: "CSV|*.csv",
-                selectedFileName: $"{Assert.APP_NAME}-audit-{DateTime.Now:yyyyMMdd-HHmmss}.csv");
+                selectedFileName: TimestampedFileName.For($"{Assert.APP_NAME}-audit", ".csv"));
             if (string.IsNullOrEmpty(path)) return;
 
             try

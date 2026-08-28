@@ -3,6 +3,7 @@ using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Text;
+using _1RM.Utils;
 using Shawn.Utils;
 
 namespace _1RM.Service.Diagnostics
@@ -23,7 +24,7 @@ namespace _1RM.Service.Diagnostics
         public const string MANIFEST_ENTRY = "README.txt";
 
         public static string SuggestedFileName() =>
-            $"{Assert.APP_NAME}-diagnostics-{DateTime.Now:yyyyMMdd-HHmmss}.zip";
+            TimestampedFileName.For($"{Assert.APP_NAME}-diagnostics", ".zip");
 
         /// <summary>
         /// Writes the bundle. Returns how many entries it holds, the manifest included.

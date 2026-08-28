@@ -323,7 +323,7 @@ namespace _1RM.View.ServerView
                                     var path = SelectFileHelper.SaveFile(
                                         title: IoC.Translate("Caution: Your data will be saved unencrypted!"),
                                         filter: "json|*.json",
-                                        selectedFileName: DateTime.Now.ToString("yyyyMMddhhmmss") + ".json");
+                                        selectedFileName: TimestampedFileName.For($"{Assert.APP_NAME}-servers", ".json"));
                                     if (path == null) return;
                                     var list = new List<ProtocolBase>();
                                     foreach (var vs in VmServerList.Where(x => (string.IsNullOrWhiteSpace(SelectedTabName) || x.Server.Tags?.Contains(SelectedTabName) == true) && x.IsSelected == true && x.IsEditable))
