@@ -127,6 +127,8 @@ This fork branched off upstream in August 2026. Everything below is new here; up
   cannot run a command on your desktop the next time you open the entry.
 - **A copied password is kept out of the Windows clipboard history and the cloud clipboard**, and is taken
   off the clipboard again after 30 seconds unless you have copied something else since.
+- **Every credential that leaves the app is recorded** — a copied password, a cleartext export, a generated
+  `.rdp`, a backup — next to the connection audit log, with the destination but never the credential.
 - **WebDAV backups refuse plain HTTP** unless it is explicitly enabled, with a warning next to the switch.
 - Generated **`.rdp` files and private-key copies are staged per session** and removed with the session, and
   the password they carry is **encrypted with your key rather than the machine's**, so no other account on
@@ -370,6 +372,29 @@ that a last-connect timestamp cannot: who reached that host, from which machine,
 - On by default, kept for 90 days. Both are settable; a retention of 0 keeps everything.
 - **Export to CSV** for a review or a ticket. Fields beginning with `=`, `+`, `-` or `@` are prefixed with an
   apostrophe so a server name typed by somebody else cannot run as a formula when the file is opened.
+
+### When a credential leaves the app
+
+The connection log answers "who reached that host". It says nothing about the operator who exported the whole
+server list to a JSON file with every password in cleartext, copied one to the clipboard, or packed the
+credential database into a backup and carried it off — which is the first question an insider-threat or
+leaver review asks. `Options → General → Connection audit → Record when a credential leaves this app`, on by
+default and independent of the connection switch, records exactly that:
+
+| Event | Written when |
+| --- | --- |
+| `PasswordCopied` | *Copy password* on a server's action menu |
+| `ServerListExported` | *Export* to JSON, which writes every selected password in cleartext |
+| `RdpFileExported` | *Export \*.rdp*, whose file carries the password as a DPAPI blob |
+| `BackupCreated` | A `.1rbak` written locally or uploaded to WebDAV |
+| `AuditLogExported` | This log itself being exported — "who pulled the log" is an audit question too |
+
+- Written to `.locality/audit/secrets-YYYY-MM-DD.jsonl`, beside the connection log and under the same
+  retention setting; **Delete the audit log** removes both.
+- Each line says who, when, which server (or how many), and where it went — a destination path or
+  `clipboard`. **Never the credential itself**, for the same reason the connection record holds none.
+- **Export to CSV** writes these rows to a second file next to the one you named, with `-secrets` appended:
+  the two record shapes cannot share a table, and an auditor who asked for "the log" wants both.
 
 ## Diagnostics bundle
 
@@ -635,7 +660,7 @@ folder otherwise.
 | `1Remote.dataSources.json` | Additional MySQL / PostgreSQL sources |
 | `Protocols/` | Custom protocol runners |
 | `.locality/` | Window positions, connection history, `known_hosts.json` |
-| `.locality/audit/` | Connection audit log, one `.jsonl` per UTC day |
+| `.locality/audit/` | Connection audit log and credential-access log, one `.jsonl` each per UTC day |
 | `.icons/` | Server icons |
 | `.logs/1Remote.log.md` | Application log |
 | `.sessionlogs/` | Recorded terminal output, when that is enabled |

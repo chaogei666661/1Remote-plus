@@ -123,6 +123,16 @@ namespace _1RM.Service
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.Populate)]
         public bool AuditConnections = true;
 
+        /// <summary>
+        /// Write a line whenever a credential leaves the app: a password copied, the server list exported
+        /// in cleartext, a .rdp written, a backup taken, the audit log itself exported. On by default and
+        /// independent of <see cref="AuditConnections"/>, because "who took the passwords" and "who
+        /// connected where" are asked by different reviews. Records the destination, never the secret.
+        /// </summary>
+        [DefaultValue(true)]
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Populate)]
+        public bool AuditSecretAccess = true;
+
         /// <summary>How long audit day files are kept. 0 keeps them indefinitely.</summary>
         [DefaultValue(90)]
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.Populate)]

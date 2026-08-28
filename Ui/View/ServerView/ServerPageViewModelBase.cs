@@ -3,6 +3,7 @@ using _1RM.Model.Protocol;
 using _1RM.Model.Protocol.Base;
 using _1RM.Resources.Icons;
 using _1RM.Service;
+using _1RM.Service.Audit;
 using _1RM.Service.DataSource;
 using _1RM.Service.DataSource.DAO;
 using _1RM.Service.DataSource.DAO.Dapper;
@@ -335,6 +336,9 @@ namespace _1RM.View.ServerView
 
                                     ClearSelection();
                                     File.WriteAllText(path, JsonConvert.SerializeObject(list, Formatting.Indented), Encoding.UTF8);
+                                    // Every password in the selection is now on disk in cleartext. That is
+                                    // the event an insider-threat review asks about first.
+                                    SecretAccessAudit.ServerListExported(list.Count, path);
                                     MessageBoxHelper.Info($"{IoC.Translate("Export")}: {IoC.Translate("Done")}!");
 
                                 }

@@ -523,9 +523,12 @@
     <s:String x:Key="audit_open_folder">Open folder</s:String>
     <s:String x:Key="audit_export">Export to CSV</s:String>
     <s:String x:Key="audit_export_done">Exported {0} entries to {1}</s:String>
+    <s:String x:Key="audit_export_done_with_secrets">Exported {0} connection entries to {1}, and {2} credential-access entries to {3}</s:String>
     <s:String x:Key="audit_export_empty">There is nothing in the audit log yet.</s:String>
     <s:String x:Key="audit_clear">Delete the audit log</s:String>
-    <s:String x:Key="audit_clear_confirm">Delete every recorded connection? This cannot be undone.</s:String>
+    <s:String x:Key="audit_clear_confirm">Delete every recorded connection and credential access? This cannot be undone.</s:String>
+    <s:String x:Key="audit_secret_access">Record when a credential leaves this app</s:String>
+    <s:String x:Key="audit_secret_access_hint">A copied password, a server list exported in cleartext, a generated .rdp, a backup, an export of this log. The record says who, when, which server and where it went — never the credential itself.</s:String>
     <s:String x:Key="session_log_retention_days">Delete recordings older than (days)</s:String>
     <s:String x:Key="session_log_retention_size">Keep at most (MB)</s:String>
     <s:String x:Key="session_log_retention_hint">0 turns the limit off. Recordings are pruned when the app starts and after each session ends; the oldest go first.</s:String>

@@ -27,7 +27,7 @@ namespace _1RM.Service.Audit
     /// to hand to somebody else — a ticket, an auditor, a compliance review — so it holds only what an
     /// access report needs and nothing that would be a leak if it were forwarded.
     /// </summary>
-    public sealed class ConnectionAuditRecord
+    public sealed class ConnectionAuditRecord : IAuditRecord
     {
         /// <summary>UTC, so records from machines in different time zones sort and merge correctly.</summary>
         [JsonProperty("t")]

@@ -7,6 +7,7 @@ using _1RM.Model.Protocol.Base;
 using _1RM.Model.ProtocolRunner;
 using _1RM.Model.ProtocolRunner.Default;
 using _1RM.Service;
+using _1RM.Service.Audit;
 using _1RM.Utils;
 using _1RM.View;
 using Shawn.Utils.Interface;
@@ -153,6 +154,7 @@ public static class ProtocolActionHelper
                             // Not Clipboard.SetDataObject: a password has to stay out of the Win+V history
                             // and the cloud clipboard, and it has to come back off again.
                             SecretClipboardHost.Copy(UnSafeStringEncipher.DecryptOrReturnOriginalString(protocolServerWithAddrPortUserPwdBase.Password));
+                            SecretAccessAudit.PasswordCopied(protocolServerWithAddrPortUserPwdBase);
                         }
                         catch (Exception)
                         {
@@ -207,6 +209,8 @@ public static class ProtocolActionHelper
                 export.Address = rdp.RealAddress;
                 export.Port = rdp.RealPort;
                 File.WriteAllText(path, export.ToRdpConfig().ToString());
+                // The file carries the password as a DPAPI blob, so it is a credential leaving the app.
+                SecretAccessAudit.RdpFileExported(rdp, path!);
             }));
         }
 

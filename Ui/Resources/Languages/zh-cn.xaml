@@ -523,9 +523,12 @@
     <s:String x:Key="audit_open_folder">打开目录</s:String>
     <s:String x:Key="audit_export">导出为 CSV</s:String>
     <s:String x:Key="audit_export_done">已导出 {0} 条记录到 {1}</s:String>
+    <s:String x:Key="audit_export_done_with_secrets">已导出 {0} 条连接记录到 {1}，以及 {2} 条凭据外流记录到 {3}</s:String>
     <s:String x:Key="audit_export_empty">审计日志里还没有记录。</s:String>
     <s:String x:Key="audit_clear">删除审计日志</s:String>
-    <s:String x:Key="audit_clear_confirm">删除全部连接记录？此操作无法撤销。</s:String>
+    <s:String x:Key="audit_clear_confirm">删除全部连接记录和凭据外流记录？此操作无法撤销。</s:String>
+    <s:String x:Key="audit_secret_access">把凭据离开本程序的操作记入审计日志</s:String>
+    <s:String x:Key="audit_secret_access_hint">复制密码、明文导出服务器列表、生成 .rdp 文件、创建备份、导出本日志。记录的是谁、什么时候、哪台服务器、去了哪里——不记录凭据本身。</s:String>
     <s:String x:Key="session_log_retention_days">删除超过多少天的录像</s:String>
     <s:String x:Key="session_log_retention_size">总大小上限（MB）</s:String>
     <s:String x:Key="session_log_retention_hint">填 0 表示不限制。启动时和每次会话结束后清理，先删最旧的。</s:String>
