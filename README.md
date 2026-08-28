@@ -480,6 +480,18 @@ a potential code-execution vector. Each distinct command has to be approved once
 will ever run, and approvals are stored locally in `.locality/known_commands.json`; they never travel with
 the database. Pre/post-connect scripts are the same class of feature and carry the same caveat.
 
+**An import says what it is bringing in.** Three fields of a server entry are command lines this app runs on
+*your* machine, with *your* account: **Script before connect**, **Script after disconnected**, and a **Local
+app** entry's program. All three are serialised into the JSON export, the PRemoteM/1Remote database and the
+backup archive, and the importers used to insert them without a word — so "here is our server list" was a way
+to put a command on somebody's desktop that runs the next time they open the entry, which they will, because
+that is why they imported it. Importing from JSON, a database, mRemoteNG CSV, an `.rdp` file or an SSH config
+now lists the entries that carry a command, quotes the command, and asks once before anything is written.
+Nothing is rewritten and nothing is refused — the point is that the answer is given by someone who knows
+where the file came from. Invisible characters in a command are spelled out (`<U+202E>`) rather than obeyed,
+so a command cannot be drawn as something other than what runs, or use newlines to push the question off the
+dialog.
+
 **WebDAV backups require HTTPS.** The archive contains the whole configuration, the credential database
 included, and the client sends Basic authentication pre-emptively. Plain `http://` is refused unless it is
 explicitly enabled in the backup settings, which is only ever reasonable on a loopback or lab endpoint.
