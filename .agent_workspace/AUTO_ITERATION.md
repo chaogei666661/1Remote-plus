@@ -157,10 +157,24 @@ What to do about that, in order of preference:
 
 1. Write the tests anyway, in `Tests/`, following the conventions there (`[TestInitialize] TestInit.Init()`,
    names that are sentences, comments that say why the case matters). CI runs them.
-2. **Additionally**, for pure logic, mirror the assertions in a throwaway `net9.0` console project outside
-   the repository that `<Compile Include="…" />`s the file under test, and run it. This actually executes
-   the logic and catches the arithmetic and off-by-one mistakes that a compile cannot. It is cheap and it
-   is the difference between "compiles" and "works". Delete it afterwards; it is not part of the repository.
+2. **Additionally, run those same tests here.** Build a throwaway MSTest project outside the repository
+   that targets plain `net9.0` and `<Compile Include="…" />`s the real test files *and* the real files
+   under test by absolute path. Do not retype the assertions into a console app: a copy drifts from the
+   thing it is supposed to be checking, and a passing copy proves nothing about the file CI will run.
+
+   Two obstacles, both small. `Tests.TestInit` pulls the whole app in, so supply a no-op `TestInit` in the
+   throwaway project. A file under test may have one adapter overload that takes a WPF type — the shape of
+   `RunnerHealth.Inspect(ExternalRunner)` — so supply a stub of that type too; the real overload is still
+   type-checked by the `Ui` build, and the tests go through the pure entry point. Where a test genuinely
+   needs the app (the three `SshConfigImporter` cases), exclude it by name with `--filter` and say which
+   ones you excluded.
+
+   ```bash
+   dotnet test --filter "FullyQualifiedName!~SomeTestNeedingWindows"
+   ```
+
+   This is the difference between "compiles" and "works": it is what caught the grading arithmetic in the
+   2026-08-28 round. Delete the project afterwards; it is not part of the repository.
 3. For anything that needs a window, write down the manual steps a human would follow, in the pull request,
    precisely enough to be run without re-reading the diff.
 
@@ -213,6 +227,8 @@ whose Windows behaviour nobody has looked at.
 ## 10. Before you finish
 
 - [ ] `dotnet build Tests/Tests.csproj -c Debug -p:EnableWindowsTargeting=true` — 0 errors.
+- [ ] Every new test that does not need a window actually run, via the §7.2 harness, and the pass count
+      quoted in the report.
 - [ ] `Ui/AppVersion.cs` untouched.
 - [ ] New user-visible strings in both `en-us.xaml` and `zh-cn.xaml`.
 - [ ] `README.md` and `README.zh-CN.md` updated if a user can see the change.

@@ -74,12 +74,13 @@ rather than a copy.
 | `e4ea8636` | `feat(ssh-config): follow Include and apply pattern blocks when importing` |
 | `ac7cbff8` | `feat(reachability): grade the dot on latency, jitter and loss` |
 | `546f79bb` | `feat(runner): check external runners and say what is wrong before a session does` |
+| `15f139a0` | `perf(runner): hold the health result instead of re-inspecting the disk on every read` |
 
 Plus this file, `AUTO_ITERATION.md` and `scripts/Get-ResearchBriefing.ps1`.
 
-New tests: `Tests/Utils/SshConfig/SshConfigParserTests.cs` (+20 cases, including real temp-directory
-`Include` cases), `Tests/Utils/Reachability/ConnectionQualityTrackerTests.cs` (12),
-`Tests/Model/ProtocolRunner/RunnerHealthTests.cs` (13).
+New tests: `Tests/Utils/SshConfig/SshConfigParserTests.cs` grew from 14 cases to 33, including
+`Include` cases that write real temp directories; `Tests/Utils/Reachability/ConnectionQualityTrackerTests.cs`
+(13, new file); `Tests/Model/ProtocolRunner/RunnerHealthTests.cs` (13, new file).
 
 ### Verification
 
@@ -87,10 +88,17 @@ New tests: `Tests/Utils/SshConfig/SshConfigParserTests.cs` (+20 cases, including
 be *run*: the test host needs `Microsoft.WindowsDesktop.App`, which has no Linux build. CI on
 `windows-latest` is the first place it executes.
 
-All three features' logic was additionally **executed** by mirroring every assertion into a throwaway
-`net9.0` console project that compiled `SshConfigParser.cs`, `ConnectionQuality.cs` and `RunnerHealth.cs`
-directly — 60-odd assertions, all passing. That is what caught the grading arithmetic being off in the
-first draft of the quality thresholds. `scripts/Get-ResearchBriefing.ps1` was run under PowerShell 7.4.
+The new tests were nonetheless **executed here**, against the real sources, by the harness now written up
+in §7.2 of the runbook: a throwaway `net9.0` MSTest project that compiles the three test files and
+`SshConfigParser.cs`, `ConnectionQuality.cs`, `RunnerHealth.cs` by absolute path, with a no-op `TestInit`
+and a stub `ExternalRunner` so the WPF-only adapter overload compiles.
+
+**56 passed, 0 failed.** The three excluded are the pre-existing `SshConfigImporter` cases
+(`ImportingBuildsServersAndTheJumpHostTheyNeed`, `ReimportingReusesAJumpHostAlreadyOnThePage`,
+`TheAliasBecomesTheDisplayNameAndTheHostNameTheAddress`), which construct real `ProtocolBase` servers and
+so need the app; this round did not touch the importer. An earlier, weaker version of this check — the
+assertions retyped into a console app — is what caught the grading arithmetic being off in the first draft
+of the quality thresholds. `scripts/Get-ResearchBriefing.ps1` was run under PowerShell 7.4.
 
 Not executed anywhere: the XAML. The dot's colour ramp in `ServerLineItem.xaml` and the warning panel in
 `ExternalRunnerSettings.xaml` / `ExternalSshRunnerSettings.xaml` were checked by reading. See the pull
