@@ -458,6 +458,13 @@
     <s:String x:Key="external_secret_test_failed">The command failed: {0}</s:String>
     <s:String x:Key="external_secret_trust_title">Run a command to fetch a password?</s:String>
     <s:String x:Key="external_secret_trust_new">A password for this connection is stored as a command to run, and this command has not been approved on this machine before.&#10;&#10;{0}&#10;&#10;It will run with your account's privileges. Only approve it if you put it there yourself — a command that arrived with an imported, restored or shared server list can do anything you can.&#10;&#10;Run it and remember this approval?</s:String>
+    <s:String x:Key="script_test_will_run">We will run: '{0}'</s:String>
+    <s:String x:Key="script_test_will_run_with_args">We will run: '{0}' with parameters '{1}'</s:String>
+    <s:String x:Key="script_test_exit_code">The exit code of the script = {0}.&#10;Once the code != 0, we will terminate your connection request.</s:String>
+    <s:String x:Key="script_test_started_async">The script has been started. It is not waited for — a disconnect script must not hold up closing the session — so there is no exit code to report.</s:String>
+    <s:String x:Key="session_script_trust_title">Run this server's script?</s:String>
+    <s:String x:Key="session_script_trust_before">This server runs a command on this computer before it connects, and that command has not been approved here before.&#10;&#10;{0}&#10;&#10;It will run with your account's privileges. Only approve it if you put it there yourself — a server list you share with someone else, or one held in a database another administrator maintains, can carry a command you never typed.&#10;&#10;Run it and remember this approval? Answering no abandons the connection.</s:String>
+    <s:String x:Key="session_script_trust_after">This server runs a command on this computer after it disconnects, and that command has not been approved here before.&#10;&#10;{0}&#10;&#10;It will run with your account's privileges. Only approve it if you put it there yourself — a server list you share with someone else, or one held in a database another administrator maintains, can carry a command you never typed.&#10;&#10;Run it and remember this approval? Answering no just skips the command.</s:String>
     <s:String x:Key="webdav_title">Off-machine copy (WebDAV)</s:String>
     <s:String x:Key="webdav_hint">Upload the same archive to a WebDAV folder — Nextcloud, ownCloud, Synology and most NAS boxes speak it. The archive holds your configuration unencrypted, so use an HTTPS address and a folder only you can read.</s:String>
     <s:String x:Key="webdav_url">Folder URL</s:String>
@@ -522,6 +529,9 @@
     <s:String x:Key="session_log_retention_days">Delete recordings older than (days)</s:String>
     <s:String x:Key="session_log_retention_size">Keep at most (MB)</s:String>
     <s:String x:Key="session_log_retention_hint">0 turns the limit off. Recordings are pruned when the app starts and after each session ends; the oldest go first.</s:String>
+    <s:String x:Key="secret_clipboard_title">Copied passwords</s:String>
+    <s:String x:Key="secret_clipboard_hint">A password copied from a server's action menu is kept out of the Windows clipboard history (Win+V) and out of the cloud clipboard, and is removed from the clipboard again after the time below — unless you have copied something else by then, which is left alone. 0 leaves it on the clipboard, as older versions did.</s:String>
+    <s:String x:Key="secret_clipboard_seconds">Clear after (seconds)</s:String>
     <s:String x:Key="diagnostics_title">Diagnostics</s:String>
     <s:String x:Key="diagnostics_hint">Packs the log, the version, the environment and your protocol settings into one file to attach to a bug report. Addresses, user names, passwords and keys are removed before it is written.</s:String>
     <s:String x:Key="diagnostics_export">Create a diagnostics bundle</s:String>

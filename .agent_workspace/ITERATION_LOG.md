@@ -8,6 +8,159 @@ saying why the reason no longer holds.
 
 ---
 
+## 2026-08-28 — the script that ran without being asked, and the password that stayed on the clipboard
+
+Branch `cursor/session-script-gate-clipboard-secret-1e44`, off `main` at `c795bf9d` (v1.3.0.25). Opened on the
+release, as §0 says. This round took the top of the last round's "Not taken" list rather than going looking:
+item 2 (gate the pre/post-connect scripts at *connect* time) was written down there explicitly so it would
+not have to be found again, and items 3 and 4 were the two small defects.
+
+### What the research turned up
+
+**Nothing to port and nothing to patch, for the sixth round running.** `1Remote/1Remote`'s newest release is
+still `1.3-prerelease` (2026-04-29), stable still 1.2.1 from August 2025. `chaogei/1Remote-Plus`'s newest
+commits are the release plumbing this fork already has plus the four bare `Model:` commits. `dotnet restore
+Ui/Ui.csproj` emits no `NU19xx`: no direct or transitive package has a live advisory.
+
+**One of the two carried-over defects turned out not to exist.** Item 4 said `CmdExportSelectedToJson` warns
+with `IoC.Translate("Caution: Your data will be saved unencrypted!")`, "an English sentence used as a key, so
+no locale translates it". The key *is* an English sentence, which is ugly, but it is present and translated
+in all fifteen locale files and in every `glossary/*.csv`. There is nothing to fix, and renaming the key
+would mean touching fifteen files that are otherwise upstream's. Recorded here so the next round does not
+re-find it. The other half of item 4 — the twelve-hour file-name stamp — was real.
+
+**The remaining work is three findings, two of them new.**
+
+**1. The connect-time half of the command-injection vector was still open.** The last round closed the
+"here is our server list, please import it" path. `CommandBeforeConnected` and `CommandAfterDisconnected`
+were still executed with no gate at all on every connect and every disconnect, and they are ordinary columns
+of the server list. The delivery mechanisms that need no import step:
+
+| Where the list lives | Who else can write it |
+| --- | --- |
+| MySQL / PostgreSQL data source | any other admin of that database |
+| SQLite on a network share | anyone with write access to the share |
+| A synced profile folder | whatever else syncs to it |
+| A restored `.1rbak` | whoever produced the archive |
+
+An operator opens the shared source they open every morning and the script runs — with their account, and
+with `HideCommandBeforeConnectedWindow`, with no window to notice. The README already admitted the gap in
+so many words: "Pre/post-connect scripts are the same class of feature and carry the same caveat."
+
+**2. A copied password went into Windows clipboard history and stayed on the clipboard.** "Copy password"
+was `Clipboard.SetDataObject(password)` and nothing else. On Windows 10 1809 and later that is two leaks at
+once. Win+V keeps the last 25 clipboard entries in cleartext, readable by anyone who reaches an unlocked
+desktop; with *Sync across your devices* on, the cloud clipboard uploads them to the user's Microsoft account
+and pushes them to their other machines — a destination the operator did not choose and, on a managed fleet,
+may not be permitted. And nothing ever took the value off the clipboard, so the next paste into a chat
+window, a ticket or a terminal was whatever had been forgotten there. Windows publishes three registered
+formats for the first problem and every password manager uses them; this app used none of them.
+
+**3. The after-disconnect test button printed an exit code nobody measured.** Item 3 was the wrong command
+in the preview, which is real. Reading the method turned up a second defect in the same four lines: the
+disconnect script is started with `isAsync: true`, and `WinCmdRunner.RunFile` returns a constant `0` without
+waiting in that mode, so "The exit code of the script = 0." was shown whether the script succeeded, failed
+or did not exist. Both come from the block having been copied out of `RunScriptBeforeConnect` and not
+adapted.
+
+### Taken
+
+| # | Change | Why this one |
+| --- | --- | --- |
+| 1 | `SessionScriptTrustStore`, gating both script methods | The one remaining unprompted path from "somebody else can write your server list" to "code runs on your desktop". Top of the last round's list |
+| 2 | `SecretClipboard` + `SecretClipboardHost` | A cleartext password retained by the OS in two places the user never chose, from the one action whose whole purpose is handling a secret |
+| 3 | `ShowWhatWillRun`, and no fabricated exit code | A test button that reports the wrong command and invents a result is worse than no test button |
+| 4 | `TimestampedFileName` | Two exports in one day silently overwrote each other, on the path that writes every password in cleartext |
+
+### Rejected, and why
+
+| Idea | Why not this round |
+| --- | --- |
+| **Move to .NET 10** | Out of scope by instruction for the sixth round. Support for .NET 9 ends **2026-11-10**, now about ten weeks out. Still needs a round with nothing else in it |
+| **Rename the `Caution: Your data will be saved unencrypted!` key** | The premise of the carried-over item was wrong — see above, it is translated everywhere. Renaming it means editing fifteen `.xaml` files and fifteen `glossary/*.csv` files that are otherwise upstream's, to change nothing a user sees |
+| **A per-server "this script is trusted" flag instead of a trust store** | The flag would live in the server list, which is the thing that cannot be trusted. Anything able to add the command can set the flag |
+| **Refuse or rewrite a script that looks dangerous** | Same answer the import round gave. A before-connect script is usually `cmd`, `powershell` or a `.bat`, all of which run anything, so a heuristic would either refuse every legitimate script or catch nothing |
+| **Let the before-connect refusal continue the connect without the script** | The script may be the VPN, the drive mount or the credential refresh the session needs. The existing contract already says a non-zero pre-connect script aborts the connect, and the `cmd://` gate aborts too. Consistency beats a connection that half-works |
+| **Approve on save for the whole bulk-edit selection** | `CmdSave` approves the two fields of the editor's merged template, which is what is on screen. Walking `_serversInBuckEdit` would approve command lines the user never looked at, which is the thing the gate exists to prevent |
+| **Put the confirm prompt inside `SessionScriptTrustStore`** | Same reason `SshHostKeyGate` did not: `MessageBoxHelper` and `IoC.Translate` reach WPF, and the store would then be the one file in this change that cannot be run here. Both arrive as delegates from `Bootstrapper` |
+| **Reuse `ExternalSecretTrustStore` for the session scripts** | It is on the do-not-touch list, and the two should not share a store anyway: approving a password-fetch command is not approving a connect script, and merging them would silently widen both |
+| **Clear the clipboard unconditionally when the timer fires** | Deletes whatever the user copied in the meantime, from a timer they never saw. The expiry checks that the clipboard still holds what was put there, and there is a test for it |
+| **Keep the password on the clipboard until the app closes** | That is the current behaviour and the bug. 30 seconds by default, 0 restores the old behaviour for anyone whose clipboard manager needs it |
+| **Also exclude the copied *address* and *user name* from clipboard history** | Neither is a secret, and users do paste them into tickets, where the history is a convenience. Excluding them would cost something and protect nothing |
+| **`Clipboard Viewer Ignore`, the fourth format some implementations add** | It is a third-party convention rather than a documented Windows one, and Microsoft's three cover the history and the cloud, which are the two things that persist. Not worth a format nobody can point at documentation for |
+| **Fix `BackupService.SuggestedFileName`'s culture too** | It is in the part of the tree this round was instructed to stay out of, and its format string is already the 24-hour one, so the only defect left there is the calendar. Written down for a round that is allowed to touch it |
+| **Audit-log the cleartext JSON export and the password copy** | The audit log records connections; "who exported every password in cleartext" is the event a compliance review would actually ask for, and it is not recorded anywhere. Considered and deferred: it wants a record shape that is not connection-shaped, and this round already had two security changes in it. Best candidate for the next round |
+| **Remove `~VmFileTransmitHost()`** | Carried over unchanged for the third round: it cancels a token nobody registered on, so it cannot throw |
+| **Rework `scripts/watch-release-iteration.sh`** | Instructed not to unless it misreports. It did not: run for real this round (`--peek`, after the fourth commit was pushed) it read v1.3.0.25 as published, [run 33150799553](https://github.com/chaogei666661/1Remote-plus/actions/runs/33150799553) as `success`, and decided `0 (idle) — 1 iteration branch(es) still ahead of main`, naming this branch and correctly writing off `cursor/project-analysis-report-df00` as stale |
+| **Session tab mute / read-only / lock; RDP per-monitor selection; the legacy-SSH toggle** | Carried over for the sixth round. All three still need a human at a Windows keyboard |
+
+### What landed
+
+| Commit | |
+| --- | --- |
+| `e00e2961` | `security(connect): a server list you did not write could still run a command on your desktop` |
+| `61ce6314` | `security(clipboard): a copied password went into Windows clipboard history and stayed there` |
+| `870558ca` | `fix(editor): testing the after-disconnect script showed the wrong command and a made-up exit code` |
+| `c4b86a13` | `fix(export): a morning export and an evening one were offered the same file name` |
+
+New files: `Ui/Utils/SessionScript/SessionScriptTrustStore.cs`, `Ui/Utils/SecretClipboard.cs`,
+`Ui/Utils/SecretClipboardHost.cs`, `Ui/Utils/TimestampedFileName.cs`.
+New tests: `Tests/Utils/SessionScript/SessionScriptTrustStoreTests.cs` (18),
+`Tests/Utils/SecretClipboardTests.cs` (15), `Tests/Utils/TimestampedFileNameTests.cs` (8) — 41 in all.
+
+Seven new language keys in both `en-us.xaml` and `zh-cn.xaml` (537 keys each, no key in one and not the
+other); four of the seven replace English literals that were built with string interpolation in
+`ProtocolBase`. One new setting, `SecretClipboardSeconds`, with a row under **Settings → General → Copied
+passwords**. `README.md` and `README.zh-CN.md` updated for all four changes.
+
+### Verification
+
+`dotnet build Tests/Tests.csproj -c Debug -p:EnableWindowsTargeting=true --no-incremental` with SDK
+9.0.317 — **0 errors, 120 warnings**, which is the count `main` builds with.
+
+Level 2 of §7 for all four: a throwaway `net9.0` MSTest project compiling `SessionScriptTrustStore.cs`,
+`SecretClipboard.cs`, `TimestampedFileName.cs` and the three test files by absolute path, with a no-op
+`TestInit` and a `ProjectReference` to `Shawn.Utils.csproj` for `SimpleLogHelper`. **41 passed, 0 failed.**
+Nothing excluded. That project is not in the repository and was deleted afterwards.
+
+Each was checked against the bug it claims to catch, by mutating the file under test and re-running:
+
+- With `EnsureApproved` returning `true` unconditionally — the behaviour before this class existed —
+  **11** of the 18 gate cases fail. With only the unwired default flipped to allow, exactly
+  `WithNoPromptWiredNothingRuns` fails.
+- With `Expire` clearing unconditionally instead of checking the token and the current contents,
+  **6** of the 15 clipboard cases fail, `SomethingTheUserCopiedSinceIsLeftAlone` among them.
+- With the stamp back to `yyyyMMdd-hhmmss` and the ambient culture, **3** of the 8 file-name cases fail.
+
+Not executed anywhere, and needing a Windows reviewer:
+
+- The `Bootstrapper.Configure` wiring of `SessionScriptTrustStore.Confirm` and `StorePathProvider`, and the
+  prompt itself. `MessageBoxHelper.Confirm` goes through `Execute.OnUIThreadSync`, and
+  `RunScriptAfterDisconnected` reaches it from `Process.Exited` and from `SessionControlService` — both
+  outside the session lock, both already inside a `try`/`catch` — so the marshalling should hold, but it has
+  not been seen.
+- The three clipboard formats. Whether Win+V really skips the entry can only be seen on a Windows desktop
+  with clipboard history on. The format *names* are asserted in a test, because a typo there would leave
+  the password in the history while the code looked as though it had excluded it.
+- The new **Copied passwords** row in `GeneralSettingView.xaml`, which mirrors the audit retention row.
+- `ServerEditorPageViewModel.CmdSave`'s two `Approve` calls, and the editor's Test button.
+
+### For the next round
+
+1. **.NET 10.** Ten weeks to 2026-11-10. Own round, nothing else in it. Sixth round at the top of this list.
+2. Audit-log the credential-disclosure events. The log records who connected where; it records nothing when
+   an operator exports every password in cleartext to a file, or copies one to the clipboard. That is the
+   event an insider-threat review asks for first, and it is the natural follow-up to both of this round's
+   security changes. Considered and deferred this round — see the rejection table.
+3. `BackupService.SuggestedFileName` still formats its year in the ambient culture, so a backup taken on a
+   Thai-locale desktop is named `2569…`. One line, in a file this round was told to stay out of.
+4. An "allow legacy SSH algorithms" per-server toggle, so the remaining CBC / SHA-1 set can leave the
+   default. Still wants an editor page.
+5. Session tab mute / read-only / lock, and RDP per-monitor selection — still waiting on a human at a
+   Windows keyboard.
+
+---
+
 ## 2026-08-28 — the bastion nobody verified, the import that brought its own commands, and the crash that left no note
 
 Branch `cursor/bastion-key-import-scan-crashlog-4b12`, off `main` at `df91984f` (v1.3.0.24). Opened on the

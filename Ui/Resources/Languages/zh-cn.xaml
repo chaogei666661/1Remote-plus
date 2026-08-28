@@ -458,6 +458,13 @@
     <s:String x:Key="external_secret_test_failed">命令执行失败：{0}</s:String>
     <s:String x:Key="external_secret_trust_title">运行命令以获取密码？</s:String>
     <s:String x:Key="external_secret_trust_new">此连接的密码保存为一条待执行的命令，而该命令在本机尚未被批准过。&#10;&#10;{0}&#10;&#10;它将以你的账户权限运行。只有在这条命令确实是你自己填写的情况下才批准 —— 随导入、还原或共享的服务器列表而来的命令，能做你能做的一切。&#10;&#10;运行并记住此次批准？</s:String>
+    <s:String x:Key="script_test_will_run">即将执行：'{0}'</s:String>
+    <s:String x:Key="script_test_will_run_with_args">即将执行：'{0}'，参数为 '{1}'</s:String>
+    <s:String x:Key="script_test_exit_code">脚本的退出码 = {0}。&#10;只要退出码不为 0，本次连接请求就会被中止。</s:String>
+    <s:String x:Key="script_test_started_async">脚本已启动。断开后脚本不会被等待——它不该拖慢会话的关闭——因此没有退出码可以报告。</s:String>
+    <s:String x:Key="session_script_trust_title">运行此服务器的脚本？</s:String>
+    <s:String x:Key="session_script_trust_before">此服务器会在连接前于本机执行一条命令，而该命令在本机尚未被批准过。&#10;&#10;{0}&#10;&#10;它将以你的账户权限运行。只有在这条命令确实是你自己填写的情况下才批准 —— 与他人共用的服务器列表，或由其他管理员维护的数据库，都可能夹带一条你从未写过的命令。&#10;&#10;运行并记住此次批准？选择「否」将放弃本次连接。</s:String>
+    <s:String x:Key="session_script_trust_after">此服务器会在断开连接后于本机执行一条命令，而该命令在本机尚未被批准过。&#10;&#10;{0}&#10;&#10;它将以你的账户权限运行。只有在这条命令确实是你自己填写的情况下才批准 —— 与他人共用的服务器列表，或由其他管理员维护的数据库，都可能夹带一条你从未写过的命令。&#10;&#10;运行并记住此次批准？选择「否」只是跳过该命令。</s:String>
     <s:String x:Key="webdav_title">异地备份（WebDAV）</s:String>
     <s:String x:Key="webdav_hint">把同样的备份包上传到 WebDAV 目录——Nextcloud、ownCloud、群晖以及多数 NAS 都支持。备份包中的配置未加密，请使用 HTTPS 地址和只有你能访问的目录。</s:String>
     <s:String x:Key="webdav_url">目录地址</s:String>
@@ -522,6 +529,9 @@
     <s:String x:Key="session_log_retention_days">删除超过多少天的录像</s:String>
     <s:String x:Key="session_log_retention_size">总大小上限（MB）</s:String>
     <s:String x:Key="session_log_retention_hint">填 0 表示不限制。启动时和每次会话结束后清理，先删最旧的。</s:String>
+    <s:String x:Key="secret_clipboard_title">已复制的密码</s:String>
+    <s:String x:Key="secret_clipboard_hint">从服务器操作菜单复制的密码，不会进入 Windows 剪贴板历史（Win+V），也不会同步到云剪贴板，并会在下面设定的时间后从剪贴板中清除——除非那时你已经复制了别的内容，那份内容不会被动到。填 0 表示一直留在剪贴板里，与旧版本行为一致。</s:String>
+    <s:String x:Key="secret_clipboard_seconds">多少秒后清除</s:String>
     <s:String x:Key="diagnostics_title">诊断</s:String>
     <s:String x:Key="diagnostics_hint">把日志、版本、运行环境和协议设置打成一个包，方便附在问题报告里。写入前会去掉地址、用户名、密码和密钥。</s:String>
     <s:String x:Key="diagnostics_export">生成诊断包</s:String>

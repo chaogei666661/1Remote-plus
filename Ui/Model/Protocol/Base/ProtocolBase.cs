@@ -12,6 +12,7 @@ using _1RM.Service;
 using _1RM.Service.DataSource.Model;
 using _1RM.Utils;
 using _1RM.Utils.Proxy;
+using _1RM.Utils.SessionScript;
 using Newtonsoft.Json;
 using Shawn.Utils;
 using Shawn.Utils.Wpf;
@@ -422,6 +423,27 @@ namespace _1RM.Model.Protocol.Base
             return evs;
         }
 
+        /// <summary>
+        /// What <see cref="RunScriptBeforeConnect"/> returns when the user declined to let the script run,
+        /// as opposed to the script running and failing. The connect is abandoned either way; the caller
+        /// only needs to tell them apart so it does not follow the trust prompt with an exit-code alert.
+        /// No real program produces this value.
+        /// </summary>
+        public const int SCRIPT_REFUSED_EXIT_CODE = int.MinValue;
+
+        /// <summary>
+        /// The "this is what the test button is about to execute" preview. Shared by both scripts because
+        /// it was copied between them once already, and the copy in the after-disconnect one went on
+        /// quoting <see cref="CommandBeforeConnected"/> — so testing the disconnect script showed you the
+        /// connect script's command line.
+        /// </summary>
+        private static void ShowWhatWillRun(string file, string arguments, string wholeCommand)
+        {
+            MessageBoxHelper.Info(string.IsNullOrEmpty(arguments)
+                ? IoC.Translate("script_test_will_run", wholeCommand)
+                : IoC.Translate("script_test_will_run_with_args", file, arguments));
+        }
+
         public int RunScriptBeforeConnect(bool isTestRun = false)
         {
             int exitCode = 0;
@@ -429,14 +451,18 @@ namespace _1RM.Model.Protocol.Base
             {
                 if (!string.IsNullOrWhiteSpace(CommandBeforeConnected))
                 {
+                    // The editor's test button is the user asking for this command by name, so it approves
+                    // rather than asks. Every other caller is a connect, which may well be automatic.
+                    if (isTestRun)
+                        SessionScriptTrustStore.Approve(CommandBeforeConnected);
+                    else if (!SessionScriptTrustStore.EnsureApproved(CommandBeforeConnected, EScriptKind.BeforeConnect))
+                        return SCRIPT_REFUSED_EXIT_CODE;
+
                     var tuple = WinCmdRunner.DisassembleOneLineScriptCmd(CommandBeforeConnected);
 
                     if (isTestRun)
                     {
-                        if (string.IsNullOrEmpty(tuple.Item2) == false)
-                            MessageBoxHelper.Info($"We will run: '{tuple.Item1}' with parameters '{tuple.Item2}'");
-                        else
-                            MessageBoxHelper.Info($"We will run: '{CommandBeforeConnected}'");
+                        ShowWhatWillRun(tuple.Item1, tuple.Item2, CommandBeforeConnected);
                     }
 
                     exitCode = WinCmdRunner.RunFile(tuple.Item1, arguments: tuple.Item2, isAsync: false,
@@ -447,7 +473,7 @@ namespace _1RM.Model.Protocol.Base
 
                     if (isTestRun)
                     {
-                        MessageBoxHelper.Info($"The exit code of the script = {exitCode}.\r\nOnce the code != 0, we will terminate your connection request.");
+                        MessageBoxHelper.Info(IoC.Translate("script_test_exit_code", exitCode.ToString()));
                     }
                 }
             }
@@ -466,17 +492,21 @@ namespace _1RM.Model.Protocol.Base
             {
                 if (!string.IsNullOrWhiteSpace(CommandAfterDisconnected))
                 {
+                    if (isTestRun)
+                        SessionScriptTrustStore.Approve(CommandAfterDisconnected);
+                    // There is no connection left to abandon here, so a refusal just means the script is
+                    // skipped. It still has to be asked: this runs on every session close, unattended.
+                    else if (!SessionScriptTrustStore.EnsureApproved(CommandAfterDisconnected, EScriptKind.AfterDisconnect))
+                        return;
+
                     var tuple = WinCmdRunner.DisassembleOneLineScriptCmd(CommandAfterDisconnected);
 
                     if (isTestRun)
                     {
-                        if (string.IsNullOrEmpty(tuple.Item2) == false)
-                            MessageBoxHelper.Info($"We will run: '{tuple.Item1}' with parameters '{tuple.Item2}'");
-                        else
-                            MessageBoxHelper.Info($"We will run: '{CommandBeforeConnected}'");
+                        ShowWhatWillRun(tuple.Item1, tuple.Item2, CommandAfterDisconnected);
                     }
 
-                    var exitCode = WinCmdRunner.RunFile(tuple.Item1, arguments: tuple.Item2, isAsync: true,
+                    WinCmdRunner.RunFile(tuple.Item1, arguments: tuple.Item2, isAsync: true,
                         isHideWindow: isTestRun != true,
                         workingDirectory: tuple.Item3,
                         useShellExcute: tuple.Item4,
@@ -484,7 +514,10 @@ namespace _1RM.Model.Protocol.Base
 
                     if (isTestRun)
                     {
-                        MessageBoxHelper.Info($"The exit code of the script = {exitCode}.");
+                        // Not an exit code. This one is started and not waited for — a disconnect script
+                        // must not hold up closing the session — so RunFile returns a constant 0, and
+                        // reporting that as the script's result was reporting something nobody measured.
+                        MessageBoxHelper.Info(IoC.Translate("script_test_started_async"));
                     }
                 }
             }

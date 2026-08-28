@@ -128,6 +128,14 @@ namespace _1RM.Service
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.Populate)]
         public int AuditRetentionDays = 90;
 
+        /// <summary>
+        /// Seconds before a password copied from a server's action menu is taken back off the clipboard.
+        /// 0 leaves it there, which is what the app used to do. See <see cref="Utils.SecretClipboard"/>.
+        /// </summary>
+        [DefaultValue(30)]
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Populate)]
+        public int SecretClipboardSeconds = 30;
+
         public int LogLevel = (int)SimpleLogHelper.EnumLogLevel.Warning;
         #endregion
 

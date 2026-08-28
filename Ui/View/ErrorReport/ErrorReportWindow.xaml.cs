@@ -153,7 +153,7 @@ namespace _1RM.View.ErrorReport
             {
                 var path = SelectFileHelper.SaveFile(
                     filter: "log |*.log.md",
-                    selectedFileName: Assert.APP_NAME + "_ErrorReport_" + DateTime.Now.ToString("yyyyMMddhhmmss") + ".md");
+                    selectedFileName: TimestampedFileName.For($"{Assert.APP_NAME}-errorreport", ".md"));
                 if (path == null) return;
                 File.WriteAllText(path, TbErrorInfo.Text.Replace("\n", "\n\n"), Encoding.UTF8);
                 var sb = new Storyboard();

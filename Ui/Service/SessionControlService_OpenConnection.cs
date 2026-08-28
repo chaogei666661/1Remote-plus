@@ -302,6 +302,13 @@ namespace _1RM.Service
             // run script before connected
             {
                 int code = protocolClone.RunScriptBeforeConnect();
+                if (ProtocolBase.SCRIPT_REFUSED_EXIT_CODE == code)
+                {
+                    // The user has just answered the trust prompt with "no". Following that with an
+                    // exit-code alert would report their own decision back to them as an error.
+                    AuditConnectFailed(protocolClone, "PreConnectScriptRefused");
+                    return "";
+                }
                 if (0 != code)
                 {
                     MessageBoxHelper.ErrorAlert($"Script ExitCode = {code}, connection abort!");
