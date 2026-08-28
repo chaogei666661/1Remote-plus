@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Windows.Media.Imaging;
+using _1RM.Utils.FileTransmit;
 using Shawn.Utils;
 
 namespace _1RM.Model.Protocol.FileTransmit.Transmitters
@@ -31,8 +32,19 @@ namespace _1RM.Model.Protocol.FileTransmit.Transmitters
         public string Name
         {
             get => _name;
-            set => SetAndNotifyIfChanged(ref _name, value);
+            set
+            {
+                if (SetAndNotifyIfChanged(ref _name, value))
+                    RaisePropertyChanged(nameof(DisplayName));
+            }
         }
+
+        /// <summary>
+        /// What the file browser shows. Identical to <see cref="Name"/> for every ordinary file; a name
+        /// carrying invisible formatting characters is spelled out instead of being drawn the way the server
+        /// intended it to be. See <see cref="RemoteNameInspector"/>.
+        /// </summary>
+        public string DisplayName => RemoteNameInspector.ToDisplayText(_name);
 
         private string _fullName = "";
         public string FullName

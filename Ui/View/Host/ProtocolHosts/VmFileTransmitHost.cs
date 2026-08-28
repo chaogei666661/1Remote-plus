@@ -686,6 +686,23 @@ namespace _1RM.View.Host.ProtocolHosts
                             return;
                         }
 
+                        // Opening is ShellExecute, which picks the program from the real extension while the
+                        // list shows whatever the name's formatting characters make it look like. Ask, with
+                        // the name spelled out and the extension that will actually decide what runs.
+                        if (RemoteNameInspector.IsDeceptive(SelectedRemoteItem.Name))
+                        {
+                            var extension = RemoteNameInspector.EffectiveExtension(SelectedRemoteItem.Name);
+                            var warning = IoC.Translate("file_transmit_host_warning_deceptive_name",
+                                RemoteNameInspector.ToDisplayText(SelectedRemoteItem.Name),
+                                string.IsNullOrEmpty(extension) ? "-" : extension);
+                            if (false == MessageBoxHelper.Confirm(warning,
+                                    IoC.Translate("file_transmit_host_warning_deceptive_name_title"),
+                                    ownerViewModel: vm == null ? this : vm))
+                            {
+                                return;
+                            }
+                        }
+
                         try
                         {
                             // The name is the server's, and it lands in a path that is about to be handed to

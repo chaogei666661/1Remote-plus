@@ -277,7 +277,7 @@
                                         <StackPanel Orientation="Horizontal">
                                             <Image Source="{Binding Icon}" Width="16"></Image>
                                             <TextBlock Name="TbName" 
-                                                       Text="{Binding Name}" 
+                                                       Text="{Binding DisplayName}" 
                                                        TextTrimming="CharacterEllipsis" 
                                                        VerticalAlignment="Center">
                                                 <TextBlock.Style>

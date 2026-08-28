@@ -484,6 +484,13 @@ impossible, refused with the offending name quoted and the whole transfer stoppe
 written. The same check runs on double-click preview, which downloads to the temp folder and then opens the
 file with its associated program — and preview now only opens a transfer that actually finished.
 
+**Remote file names are shown as they really are.** A name can be made to render as something other than
+itself: an entry named `invoice⁠<U+202E>gnp.exe` is drawn by any conforming text stack as `invoiceexe.png`,
+and double-clicking it in the browser would have started a program. The file browser spells out invisible
+formatting characters — bidirectional overrides, zero-width joiners, control characters — instead of obeying
+them, and previewing such a file asks first, quoting the real name and the extension that will actually
+decide what runs. Ordinary names, accents and CJK included, are shown unchanged.
+
 **Temporary files.** Generated `.rdp` files and private-key copies are staged in a per-session directory that
 is removed when the session ends, rather than in the shared temp folder.
 
