@@ -292,6 +292,14 @@ namespace _1RM.Model.Protocol.FileTransmit.Transmitters.TransmissionController
         /// </summary>
         public IReadOnlyList<string> LinksNotFollowed => _linksNotFollowed;
 
+        private readonly List<string> _foldersNotRead = new List<string>();
+
+        /// <summary>
+        /// Local folders the platform would not list. Same reason as <see cref="LinksNotFollowed"/>: they
+        /// arrive on the server empty, and the alternative to saying so is the user believing the upload.
+        /// </summary>
+        public IReadOnlyList<string> FoldersNotRead => _foldersNotRead;
+
         /// <summary>
         /// remember transmittedDataLength in timespan to calculate transmit speed.
         /// </summary>
@@ -435,6 +443,9 @@ namespace _1RM.Model.Protocol.FileTransmit.Transmitters.TransmissionController
 
                 foreach (var link in scan.LinksNotFollowed)
                     _linksNotFollowed.Add(link);
+
+                foreach (var folder in scan.FoldersNotRead)
+                    _foldersNotRead.Add(folder);
 
                 foreach (var entry in scan.Entries)
                 {

@@ -67,6 +67,42 @@ namespace Tests.Utils.FileTransmit
             return result.Entries.Select(x => x.RelativePath).OrderBy(x => x, StringComparer.Ordinal).ToList();
         }
 
+        /// <summary>
+        /// Lists a real tree, except for the folders named here, which fail the way an unreadable one does.
+        ///
+        /// A test cannot make a genuinely unreadable directory on both platforms: Unix wants a chmod that
+        /// the root account then ignores, and Windows wants an ACL edit through an API that exists nowhere
+        /// else. So the file system is real and only the refusal is staged.
+        /// </summary>
+        private sealed class RefusingLister : ILocalDirectoryLister
+        {
+            private readonly HashSet<string> _refusedNames;
+            private readonly Exception _failure;
+
+            public RefusingLister(Exception failure, params string[] refusedNames)
+            {
+                _failure = failure;
+                _refusedNames = new HashSet<string>(refusedNames, StringComparer.Ordinal);
+            }
+
+            /// <summary>Names whose <see cref="ILocalDirectoryLister.GetFiles"/> works even so.</summary>
+            public HashSet<string> FilesStillReadable { get; } = new HashSet<string>(StringComparer.Ordinal);
+
+            public DirectoryInfo[] GetDirectories(DirectoryInfo directory)
+            {
+                if (_refusedNames.Contains(directory.Name))
+                    throw _failure;
+                return directory.GetDirectories();
+            }
+
+            public FileInfo[] GetFiles(DirectoryInfo directory)
+            {
+                if (_refusedNames.Contains(directory.Name) && !FilesStillReadable.Contains(directory.Name))
+                    throw _failure;
+                return directory.GetFiles();
+            }
+        }
+
         // ---------------------------------------------------------------- naming the chosen folder
 
         [TestMethod]
@@ -262,6 +298,145 @@ namespace Tests.Utils.FileTransmit
 
             Assert.IsFalse(LocalUploadScan.IsLink(new DirectoryInfo(plain)));
             Assert.IsTrue(LocalUploadScan.IsLink(new DirectoryInfo(Path.Combine(_root, "linked"))));
+        }
+
+        // ---------------------------------------------------------------- folders that will not be listed
+
+        /// <summary>
+        /// The bug this section is about. One folder the walk was not allowed to list threw
+        /// UnauthorizedAccessException out of the whole Enumerate call, into a catch in TransmitTask that
+        /// only logs — so the upload sent nothing whatsoever and reported success. A drive root reaches this
+        /// on any Windows machine (System Volume Information, $Recycle.Bin), and so does any folder with one
+        /// other account's directory below it.
+        /// </summary>
+        [TestMethod]
+        public void OneFolderThatCannotBeListedDoesNotCostTheWholeUpload()
+        {
+            var top = Dir("proj");
+            Dir("proj", "locked");
+            Dir("proj", "src");
+            File_("x", "proj", "readme.md");
+            File_("x", "proj", "src", "main.cs");
+            File_("secret", "proj", "locked", "inside.txt");
+
+            var result = LocalUploadScan.Enumerate(new DirectoryInfo(top),
+                new RefusingLister(new UnauthorizedAccessException("access denied"), "locked"));
+
+            CollectionAssert.AreEqual(
+                new[] { "proj", "proj/locked", "proj/readme.md", "proj/src", "proj/src/main.cs" },
+                RelativePaths(result));
+            CollectionAssert.AreEqual(new[] { "proj/locked" }, result.FoldersNotRead.ToArray());
+            Assert.IsFalse(result.Entries.Any(x => x.RelativePath.EndsWith("inside.txt")));
+        }
+
+        [TestMethod]
+        public void AnUnreadableFolderIsStillCreatedOnTheServer()
+        {
+            var top = Dir("proj");
+            Dir("proj", "locked");
+
+            var result = LocalUploadScan.Enumerate(new DirectoryInfo(top),
+                new RefusingLister(new UnauthorizedAccessException(), "locked"));
+
+            var entry = result.Entries.Single(x => x.RelativePath == "proj/locked");
+            Assert.IsTrue(entry.IsDirectory, "the folder exists, so leaving it out of the tree is a second lie");
+        }
+
+        /// <summary>
+        /// The chosen folder itself. Nothing below it can be listed, so the upload is one empty folder — but
+        /// it still has to be an upload that says why, rather than an exception nobody sees.
+        /// </summary>
+        [TestMethod]
+        public void AChosenFolderThatCannotBeListedIsReportedRatherThanThrown()
+        {
+            var top = Dir("proj");
+            File_("x", "proj", "readme.md");
+
+            var result = LocalUploadScan.Enumerate(new DirectoryInfo(top),
+                new RefusingLister(new UnauthorizedAccessException(), "proj"));
+
+            CollectionAssert.AreEqual(new[] { "proj" }, RelativePaths(result));
+            CollectionAssert.AreEqual(new[] { "proj" }, result.FoldersNotRead.ToArray());
+        }
+
+        /// <summary>
+        /// A folder is deleted, or a network share goes away, while the scan is running. Same handling: skip
+        /// the folder, keep the transfer.
+        /// </summary>
+        [TestMethod]
+        public void AFolderThatDisappearsMidScanIsSkippedNotFatal()
+        {
+            var top = Dir("proj");
+            Dir("proj", "gone");
+            File_("x", "proj", "kept.txt");
+
+            var result = LocalUploadScan.Enumerate(new DirectoryInfo(top),
+                new RefusingLister(new DirectoryNotFoundException(), "gone"));
+
+            Assert.IsTrue(result.Entries.Any(x => x.RelativePath == "proj/kept.txt"));
+            CollectionAssert.AreEqual(new[] { "proj/gone" }, result.FoldersNotRead.ToArray());
+        }
+
+        [TestMethod]
+        public void EveryUnreadableFolderIsNamedAndNoneTwice()
+        {
+            var top = Dir("proj");
+            Dir("proj", "a");
+            Dir("proj", "b");
+            Dir("proj", "c");
+
+            var result = LocalUploadScan.Enumerate(new DirectoryInfo(top),
+                new RefusingLister(new UnauthorizedAccessException(), "a", "b"));
+
+            CollectionAssert.AreEquivalent(new[] { "proj/a", "proj/b" }, result.FoldersNotRead.ToArray());
+        }
+
+        /// <summary>
+        /// Listing subfolders and listing files are two calls, and a folder can refuse one and answer the
+        /// other. Whatever came back is still worth uploading.
+        /// </summary>
+        [TestMethod]
+        public void AFolderThatRefusesOnlyItsSubfoldersStillSendsItsFiles()
+        {
+            var top = Dir("proj");
+            Dir("proj", "half", "deep");
+            File_("x", "proj", "half", "visible.txt");
+
+            var lister = new RefusingLister(new UnauthorizedAccessException(), "half");
+            lister.FilesStillReadable.Add("half");
+
+            var result = LocalUploadScan.Enumerate(new DirectoryInfo(top), lister);
+
+            Assert.IsTrue(result.Entries.Any(x => x.RelativePath == "proj/half/visible.txt"));
+            Assert.IsFalse(result.Entries.Any(x => x.RelativePath.Contains("deep")));
+            CollectionAssert.AreEqual(new[] { "proj/half" }, result.FoldersNotRead.ToArray());
+        }
+
+        [TestMethod]
+        public void AFolderThatListsFineIsNotReportedAsUnread()
+        {
+            var top = Dir("proj");
+            Dir("proj", "src");
+            File_("x", "proj", "src", "main.cs");
+
+            var result = LocalUploadScan.Enumerate(new DirectoryInfo(top));
+
+            Assert.AreEqual(0, result.FoldersNotRead.Count);
+        }
+
+        /// <summary>
+        /// Only the failures that are about one folder are absorbed. An OutOfMemoryException is about the
+        /// process, and pretending the folder was merely unreadable would upload a tree with holes in it.
+        /// </summary>
+        [TestMethod]
+        public void AFailureThatIsNotAboutThisFolderStillEndsTheScan()
+        {
+            var top = Dir("proj");
+            Dir("proj", "boom");
+
+            Assert.ThrowsException<OutOfMemoryException>(() =>
+                LocalUploadScan.Enumerate(new DirectoryInfo(top),
+                    new RefusingLister(new OutOfMemoryException(), "boom")));
         }
 
         // ---------------------------------------------------------------- refusals

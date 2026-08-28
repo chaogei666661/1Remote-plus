@@ -93,6 +93,7 @@
     <s:String x:Key="file_transmit_host_warning_same_names">The destination has {0} file(s) with the same name(s). Do you want to continue?</s:String>
     <s:String x:Key="file_transmit_host_error_unsafe_remote_name">The transfer was stopped: the server returned the name "{0}", which points outside the folder you chose. Nothing was written there.</s:String>
     <s:String x:Key="file_transmit_host_warning_links_not_followed">{0} folder(s) were created empty because they are links, and their contents were not uploaded: {1}</s:String>
+    <s:String x:Key="file_transmit_host_warning_folders_not_read">{0} folder(s) could not be read on this computer and were uploaded empty: {1}</s:String>
     <s:String x:Key="file_transmit_host_notice_and_more">and {0} more</s:String>
     <s:String x:Key="file_transmit_host_warning_deceptive_name_title">This name is not what it looks like</s:String>
     <s:String x:Key="file_transmit_host_warning_deceptive_name">This file's name contains invisible characters that change how it is displayed. Its real name is "{0}", and opening it will run whatever "{1}" is associated with. Open it anyway?</s:String>

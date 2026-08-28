@@ -110,15 +110,33 @@ namespace _1RM.View.Host.ProtocolHosts
                     IoMessageLevel = IoMessageLevelError;
                     IoMessage = e.Message;
                 }
-                else if (t.LinksNotFollowed.Count > 0)
+                else
                 {
+                    // Everything the scan decided not to send. The user is looking at a transfer that
+                    // finished, so the only way they find out otherwise is from the far end.
+                    var notices = new List<string>();
+
                     // An upload that walked into a junction either never finished or quietly carried off
                     // whatever the junction pointed at. It now stops at the link - which means a folder the
                     // user can see full arrives empty, and that has to be said out loud.
-                    IoMessageLevel = IoMessageLevelWarning;
-                    IoMessage = IoC.Translate("file_transmit_host_warning_links_not_followed",
-                        TransferNoticeText.Count(t.LinksNotFollowed).ToString(),
-                        Summarise(t.LinksNotFollowed));
+                    if (t.LinksNotFollowed.Count > 0)
+                        notices.Add(IoC.Translate("file_transmit_host_warning_links_not_followed",
+                            TransferNoticeText.Count(t.LinksNotFollowed).ToString(),
+                            Summarise(t.LinksNotFollowed)));
+
+                    // A folder the scan was not allowed to list used to abort the whole walk, so the upload
+                    // sent nothing and said nothing. It now skips that one folder, which means the folder
+                    // arrives empty and is named here.
+                    if (t.FoldersNotRead.Count > 0)
+                        notices.Add(IoC.Translate("file_transmit_host_warning_folders_not_read",
+                            TransferNoticeText.Count(t.FoldersNotRead).ToString(),
+                            Summarise(t.FoldersNotRead)));
+
+                    if (notices.Count > 0)
+                    {
+                        IoMessageLevel = IoMessageLevelWarning;
+                        IoMessage = string.Join("  ", notices);
+                    }
                 }
 
                 ThreadPool.QueueUserWorkItem(delegate

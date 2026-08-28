@@ -511,6 +511,13 @@ compatibility junctions, so the full list used to fill it with the part you coul
 Linked *files* are still uploaded: reading through one is what copying that file means. Uploading a whole
 drive works too, and lands in a folder named after its letter; it used to fail silently.
 
+**A folder Windows will not let you read no longer cancels the whole upload.** Every Windows machine has
+folders its owner cannot open — `C:\System Volume Information`, `$Recycle.Bin`, another account's directory
+under `C:\Users` — and one of them anywhere below the folder you picked used to end the scan with an
+exception that went to the log and nowhere else: the transfer reported success and sent nothing at all.
+Uploading a drive root hit this every time. The scan now skips the folder it could not list, uploads
+everything else, creates the skipped folder empty on the server, and names it in the transfer panel.
+
 **Temporary files.** Generated `.rdp` files and private-key copies are staged in a per-session directory that
 is removed when the session ends, rather than in the shared temp folder.
 
