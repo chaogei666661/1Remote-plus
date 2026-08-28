@@ -525,6 +525,9 @@
     <s:String x:Key="session_log_retention_days">删除超过多少天的录像</s:String>
     <s:String x:Key="session_log_retention_size">总大小上限（MB）</s:String>
     <s:String x:Key="session_log_retention_hint">填 0 表示不限制。启动时和每次会话结束后清理，先删最旧的。</s:String>
+    <s:String x:Key="secret_clipboard_title">已复制的密码</s:String>
+    <s:String x:Key="secret_clipboard_hint">从服务器操作菜单复制的密码，不会进入 Windows 剪贴板历史（Win+V），也不会同步到云剪贴板，并会在下面设定的时间后从剪贴板中清除——除非那时你已经复制了别的内容，那份内容不会被动到。填 0 表示一直留在剪贴板里，与旧版本行为一致。</s:String>
+    <s:String x:Key="secret_clipboard_seconds">多少秒后清除</s:String>
     <s:String x:Key="diagnostics_title">诊断</s:String>
     <s:String x:Key="diagnostics_hint">把日志、版本、运行环境和协议设置打成一个包，方便附在问题报告里。写入前会去掉地址、用户名、密码和密钥。</s:String>
     <s:String x:Key="diagnostics_export">生成诊断包</s:String>

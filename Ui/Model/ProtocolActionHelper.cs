@@ -150,7 +150,9 @@ public static class ProtocolActionHelper
 
                         try
                         {
-                            Clipboard.SetDataObject(UnSafeStringEncipher.DecryptOrReturnOriginalString(protocolServerWithAddrPortUserPwdBase.Password));
+                            // Not Clipboard.SetDataObject: a password has to stay out of the Win+V history
+                            // and the cloud clipboard, and it has to come back off again.
+                            SecretClipboardHost.Copy(UnSafeStringEncipher.DecryptOrReturnOriginalString(protocolServerWithAddrPortUserPwdBase.Password));
                         }
                         catch (Exception)
                         {

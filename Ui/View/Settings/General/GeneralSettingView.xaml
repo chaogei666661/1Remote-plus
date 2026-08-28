@@ -297,6 +297,34 @@
                             </StackPanel>
                         </Grid>
 
+                        <!-- Password on the clipboard -->
+                        <Grid Style="{StaticResource GridOneRow}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" SharedSizeGroup="GeneralCol1"></ColumnDefinition>
+                                <ColumnDefinition MinWidth="260" SharedSizeGroup="GeneralCol2"></ColumnDefinition>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource TextBlockTitleColumn}" Width="160"
+                                       Text="{DynamicResource secret_clipboard_title}" />
+                            <StackPanel Grid.Column="1">
+                                <TextBlock MaxWidth="420" TextWrapping="Wrap"
+                                           Opacity="0.65" LineHeight="17"
+                                           FontSize="{DynamicResource GlobalFontSizeSmall}"
+                                           Foreground="{DynamicResource BackgroundTextBrush}"
+                                           Text="{DynamicResource secret_clipboard_hint}" />
+                                <StackPanel Orientation="Horizontal" Margin="0 8 0 0">
+                                    <TextBlock Text="{DynamicResource secret_clipboard_seconds}"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource BackgroundTextBrush}"
+                                               Margin="0 0 10 0" />
+                                    <TextBox Width="70" Height="26"
+                                             InputMethod.IsInputMethodEnabled="False"
+                                             InputScope="Number"
+                                             VerticalContentAlignment="Center"
+                                             Text="{Binding SecretClipboardSeconds, UpdateSourceTrigger=LostFocus}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Grid>
+
                         <!-- Diagnostics bundle -->
                         <Grid Style="{StaticResource GridOneRow}">
                             <Grid.ColumnDefinitions>

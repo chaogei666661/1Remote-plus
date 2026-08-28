@@ -125,6 +125,8 @@ This fork branched off upstream in August 2026. Everything below is new here; up
   database or an imported profile cannot turn a password field into code execution.
 - **Pre- and post-connect scripts need the same approval**, so a server list somebody else can write to
   cannot run a command on your desktop the next time you open the entry.
+- **A copied password is kept out of the Windows clipboard history and the cloud clipboard**, and is taken
+  off the clipboard again after 30 seconds unless you have copied something else since.
 - **WebDAV backups refuse plain HTTP** unless it is explicitly enabled, with a warning next to the switch.
 - Generated **`.rdp` files and private-key copies are staged per session** and removed with the session.
 - The vault token is **written before it is returned**, and the write no longer blocks the UI thread.
@@ -474,6 +476,17 @@ password in it. Keep the database where you would keep the passwords themselves.
 **What Windows Hello gates.** The second-factor prompt guards actions inside the running app — revealing or
 editing a stored credential, for example. It is not a key: the database is enciphered the same way whether
 Hello is enabled or not, and turning Hello on does not make an exfiltrated database any harder to read.
+
+**A copied password does not go into clipboard history, and does not stay on the clipboard.** *Copy password*
+on a server's action menu used to be an ordinary clipboard write, which on Windows 10 1809 and later means
+the password is kept in the Win+V history — the last 25 entries, readable by anyone who reaches an unlocked
+desktop — and, with *Sync across your devices* on, uploaded to the user's Microsoft account and pushed to
+their other machines. Nothing removed it from the clipboard either, so the next paste into a chat window or
+a ticket was whatever had been forgotten there. The copy now carries the three registered formats Windows
+provides for exactly this (`ExcludeClipboardContentFromMonitorProcessing`, `CanIncludeInClipboardHistory`,
+`CanUploadToCloudClipboard`), and is removed from the clipboard again after 30 seconds by default. If you
+have copied something else by then, that is left alone. Set the timeout to 0 under **Settings → General →
+Copied passwords** to go back to leaving it there.
 
 **`cmd://` external secrets are a shell-out.** A password field may hold `cmd://<command line>`, which is run
 through `cmd.exe` at connect time and whose output becomes the secret. That makes any writable data source —

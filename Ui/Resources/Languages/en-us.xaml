@@ -525,6 +525,9 @@
     <s:String x:Key="session_log_retention_days">Delete recordings older than (days)</s:String>
     <s:String x:Key="session_log_retention_size">Keep at most (MB)</s:String>
     <s:String x:Key="session_log_retention_hint">0 turns the limit off. Recordings are pruned when the app starts and after each session ends; the oldest go first.</s:String>
+    <s:String x:Key="secret_clipboard_title">Copied passwords</s:String>
+    <s:String x:Key="secret_clipboard_hint">A password copied from a server's action menu is kept out of the Windows clipboard history (Win+V) and out of the cloud clipboard, and is removed from the clipboard again after the time below — unless you have copied something else by then, which is left alone. 0 leaves it on the clipboard, as older versions did.</s:String>
+    <s:String x:Key="secret_clipboard_seconds">Clear after (seconds)</s:String>
     <s:String x:Key="diagnostics_title">Diagnostics</s:String>
     <s:String x:Key="diagnostics_hint">Packs the log, the version, the environment and your protocol settings into one file to attach to a bug report. Addresses, user names, passwords and keys are removed before it is written.</s:String>
     <s:String x:Key="diagnostics_export">Create a diagnostics bundle</s:String>

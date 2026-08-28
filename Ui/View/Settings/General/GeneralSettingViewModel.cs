@@ -213,6 +213,21 @@ namespace _1RM.View.Settings.General
             }
         }
 
+        /// <summary>
+        /// Seconds a copied password stays on the clipboard. 0 leaves it there indefinitely, which is what
+        /// the app did before the clipboard was given an expiry.
+        /// </summary>
+        public int SecretClipboardSeconds
+        {
+            get => _configurationService.General.SecretClipboardSeconds;
+            set
+            {
+                var clamped = SecretClipboard.NormaliseLifetimeSeconds(value);
+                if (SetAndNotifyIfChanged(ref _configurationService.General.SecretClipboardSeconds, clamped))
+                    _configurationService.Save();
+            }
+        }
+
         #region Connection audit
 
         public bool AuditConnections
