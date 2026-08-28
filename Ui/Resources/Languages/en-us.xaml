@@ -394,11 +394,16 @@
     <s:String x:Key="port_forward_invalid_destination">Enter the destination host.</s:String>
     <s:String x:Key="port_forward_invalid_destination_port">The destination port must be between 1 and 65535.</s:String>
     <s:String x:Key="reachability_enable">Show whether each server is reachable</s:String>
-    <s:String x:Key="reachability_enable_hint">Opens a connection to the port each visible server uses, on a timer, and marks it green or red. Uses the proxy the server is configured with; servers behind an SSH jump host are not probed.</s:String>
+    <s:String x:Key="reachability_enable_hint">Opens a connection to the port each visible server uses, on a timer, and colours a dot by how the last ten checks went — round-trip time, jitter and how many of them went unanswered. Uses the proxy the server is configured with; servers behind an SSH jump host are not probed.</s:String>
     <s:String x:Key="reachability_interval">Check every (seconds)</s:String>
     <s:String x:Key="reachability_online">Reachable, {0} ms</s:String>
     <s:String x:Key="reachability_offline">Nothing answered on that port</s:String>
     <s:String x:Key="reachability_unknown">Not checked yet</s:String>
+    <s:String x:Key="connection_quality_excellent">Excellent connection</s:String>
+    <s:String x:Key="connection_quality_good">Good connection</s:String>
+    <s:String x:Key="connection_quality_fair">Usable, but slow or unsteady</s:String>
+    <s:String x:Key="connection_quality_poor">Poor connection</s:String>
+    <s:String x:Key="connection_quality_detail">{0} ms average, {1} ms jitter, {2}% unanswered, over the last {3} checks</s:String>
     <s:String x:Key="wol_action">Wake on LAN</s:String>
     <s:String x:Key="wol_mac_address">MAC address</s:String>
     <s:String x:Key="wol_mac_address_hint">Only used to wake this machine over the network. Leave it empty if you do not need that.</s:String>

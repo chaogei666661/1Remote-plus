@@ -85,7 +85,8 @@ This fork branched off upstream in August 2026. Everything below is new here; up
 - **Host identity verification**, on by default: RDP certificates, SSH host keys on SFTP and FTPS
   certificates are checked against a remembered fingerprint, with an explicit per-server opt-out.
 - **Passwords from a password manager** at connect time, via a `cmd://` reference to any CLI.
-- **Reachability indicator** — an optional timer that marks each visible server green or red.
+- **Connection quality indicator** — an optional timer that grades each visible server on round-trip time,
+  jitter and unanswered checks, not just up or down.
 - **Wake on LAN** from a server's action menu.
 - **Import from `~/.ssh/config`**, including its `ProxyJump` directives.
 - **Send command** — type one command into several open terminal sessions at once, with saved snippets.
@@ -255,10 +256,25 @@ everything under it at once, or **Delete**. On a tag chip on a row, plain click 
 **Sorting.** The main menu's **Sorting** submenu orders the list by Id (your own drag order), protocol, name,
 address, or **Recently connected**. Protocol, name and address toggle between ascending and descending.
 
-**Reachability.** Turn on `Options → General → Show whether each server is reachable` and the app opens a
-connection to each visible server's port on a timer (60 s by default) and marks it green or red. It uses
-whatever proxy the server is configured with; servers behind an SSH jump host are not probed. It is off by
-default because it is traffic to every configured host on a schedule.
+**Reachability and connection quality.** Turn on `Options → General → Show whether each server is reachable`
+and the app opens a connection to each visible server's port on a timer (60 s by default). It uses whatever
+proxy the server is configured with; servers behind an SSH jump host are not probed. It is off by default
+because it is traffic to every configured host on a schedule.
+
+The dot is graded rather than binary. Each sweep's round-trip time is kept for the last ten checks, and the
+colour comes from the average, the jitter (the mean change between consecutive checks) and how many of the
+ten went unanswered:
+
+| Dot | Meaning |
+| --- | --- |
+| Green | Under 60 ms average, steady, nothing lost |
+| Lime | Under 150 ms, or up to 50 ms of jitter |
+| Amber | Under 300 ms, up to 100 ms of jitter, or 5–19% unanswered |
+| Orange | 300 ms or more, 100 ms or more of jitter, or 20% or more unanswered |
+| Red | The last check got no answer at all |
+
+Hover the dot for the numbers behind the colour. Nothing extra goes on the wire for this: the grade is built
+from the sweep that was already happening, not from a burst of probes.
 
 **Tray.** Closing the window minimises to the tray by default (`Options → General → Close button behavior`).
 The tray menu can list recently used sessions, reset the main window position, open the issue tracker, show
