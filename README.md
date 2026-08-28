@@ -365,6 +365,14 @@ a command-line template and environment variables, and choose whether its window
 1Remote Plus tab or left standalone. See the upstream [runner documentation](https://1remote.github.io/usage/protocol/runner/)
 — it still applies here.
 
+Each runner is checked as you edit it, and anything that will stop it working is listed at the top of its
+panel: no program chosen, a program that is not at the path given, a `%LIKE_THIS%` placeholder that is not
+one of the macros the protocol offers, and an empty private-key command line. That last one is the quiet
+trap — it does not fall back to the normal command line, it replaces it, so a server that has a key
+configured starts the program with no arguments at all. A mistyped macro used to produce no message
+anywhere: runners are started without a shell, so `%1RM_HOSTNAM%` reaches PuTTY as those literal characters
+and all the user sees is a client that opens and fails to connect.
+
 ## Credentials and secrets
 
 **Credentials Vault** (`Options → Credentials Vault`) holds named username/password/private-key entries.

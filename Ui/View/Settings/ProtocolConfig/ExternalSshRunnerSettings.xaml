@@ -64,6 +64,28 @@
         </Grid>
         <StackPanel Grid.Row="1">
             <Grid Height="20"></Grid>
+
+            <!--What is wrong with this runner. Collapsed when there is nothing to say, so a working
+                configuration looks exactly as it did before.-->
+            <Border Visibility="{Binding HealthVisibility}"
+                    Margin="20 0 20 10" Padding="10 8" CornerRadius="6"
+                    Background="{DynamicResource ContentLayerHoverBrush}"
+                    BorderBrush="#E67E22" BorderThickness="1">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource TextBlockBase}"
+                               Foreground="#E67E22" FontWeight="Bold"
+                               Text="{DynamicResource runner_health_title}" />
+                    <ItemsControl ItemsSource="{Binding HealthIssues}" Margin="0 4 0 0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Style="{StaticResource TextBlockBase}"
+                                           Margin="0 2 0 0" TextWrapping="Wrap" Text="{Binding}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
             <Grid Style="{StaticResource GridOneRow}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" SharedSizeGroup="ExternalRunnerColumn1"></ColumnDefinition>

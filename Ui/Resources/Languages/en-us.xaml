@@ -404,6 +404,14 @@
     <s:String x:Key="connection_quality_fair">Usable, but slow or unsteady</s:String>
     <s:String x:Key="connection_quality_poor">Poor connection</s:String>
     <s:String x:Key="connection_quality_detail">{0} ms average, {1} ms jitter, {2}% unanswered, over the last {3} checks</s:String>
+    <s:String x:Key="runner_health_title">Problems with this runner</s:String>
+    <s:String x:Key="runner_health_exe_missing">No program is set, so nothing can be started for this protocol.</s:String>
+    <s:String x:Key="runner_health_exe_not_found">The program is not there: {0}</s:String>
+    <s:String x:Key="runner_health_unknown_macro">%{0}% in the {1} is not a macro this protocol offers. It is not an environment variable either — the program is started without a shell, so those characters are passed through exactly as written.</s:String>
+    <s:String x:Key="runner_health_private_key_arguments_missing">The private-key command line is empty. It does not fall back to the one above: a server that has a private key configured will start this program with no arguments at all.</s:String>
+    <s:String x:Key="runner_health_in_arguments">command line</s:String>
+    <s:String x:Key="runner_health_in_arguments_for_private_key">private-key command line</s:String>
+    <s:String x:Key="runner_health_in_environment_variables">environment variables</s:String>
     <s:String x:Key="wol_action">Wake on LAN</s:String>
     <s:String x:Key="wol_mac_address">MAC address</s:String>
     <s:String x:Key="wol_mac_address_hint">Only used to wake this machine over the network. Leave it empty if you do not need that.</s:String>

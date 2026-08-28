@@ -404,6 +404,14 @@
     <s:String x:Key="connection_quality_fair">可用，但偏慢或不稳定</s:String>
     <s:String x:Key="connection_quality_poor">连接质量差</s:String>
     <s:String x:Key="connection_quality_detail">最近 {3} 次检测：平均 {0} 毫秒，抖动 {1} 毫秒，{2}% 无响应</s:String>
+    <s:String x:Key="runner_health_title">这个启动器存在问题</s:String>
+    <s:String x:Key="runner_health_exe_missing">没有设置程序，这个协议无法启动任何东西。</s:String>
+    <s:String x:Key="runner_health_exe_not_found">程序不存在：{0}</s:String>
+    <s:String x:Key="runner_health_unknown_macro">{1}里的 %{0}% 不是本协议提供的宏，也不是环境变量——程序不经过 shell 启动，这几个字符会原样传给它。</s:String>
+    <s:String x:Key="runner_health_private_key_arguments_missing">私钥命令行是空的。它不会回退到上面那一条：配置了私钥的服务器会以完全没有参数的方式启动这个程序。</s:String>
+    <s:String x:Key="runner_health_in_arguments">命令行</s:String>
+    <s:String x:Key="runner_health_in_arguments_for_private_key">私钥命令行</s:String>
+    <s:String x:Key="runner_health_in_environment_variables">环境变量</s:String>
     <s:String x:Key="wol_action">网络唤醒 (WoL)</s:String>
     <s:String x:Key="wol_mac_address">MAC 地址</s:String>
     <s:String x:Key="wol_mac_address_hint">仅用于通过网络唤醒这台机器，不需要可以留空。</s:String>
