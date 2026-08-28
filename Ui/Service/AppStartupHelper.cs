@@ -163,7 +163,7 @@ namespace _1RM.Service
                         // tag connect
                         var tagName = arg.Substring(1);
                         var ss = IoC.Get<GlobalData>().VmItemList
-                            .Where(x => x.Server.Tags.Any(x => string.Equals(x, tagName, StringComparison.CurrentCultureIgnoreCase))
+                            .Where(x => x.Server.Tags.Any(t => TagName.AreSame(t, tagName))
                                         && servers.Contains(x.Server) == false)
                             .Select(x => x.Server)
                             .ToArray();

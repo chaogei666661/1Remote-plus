@@ -157,7 +157,7 @@ public static class TagActionHelper
         if (string.IsNullOrEmpty(tagName))
             return;
         var servers = IoC.Get<GlobalData>().VmItemList
-            .Where(x => x.Server.Tags.Any(x => string.Equals(x, tagName, StringComparison.CurrentCultureIgnoreCase)))
+            .Where(x => x.Server.Tags.Any(t => TagName.AreSame(t, tagName)))
             .Select(x => x.Server)
             .ToArray();
         GlobalEventHelper.OnRequestServersConnect?.Invoke(servers, fromView: $"{nameof(MainWindowView)}");
@@ -171,7 +171,7 @@ public static class TagActionHelper
 
         var token = DateTime.Now.Ticks.ToString();
         var servers = IoC.Get<GlobalData>().VmItemList
-            .Where(x => x.Server.Tags.Any(x => string.Equals(x, tagName, StringComparison.CurrentCultureIgnoreCase)))
+            .Where(x => x.Server.Tags.Any(t => TagName.AreSame(t, tagName)))
             .Select(x => x.Server)
             .ToArray();
         GlobalEventHelper.OnRequestServersConnect?.Invoke(servers, fromView: $"{nameof(MainWindowView)}", assignTabToken: token);

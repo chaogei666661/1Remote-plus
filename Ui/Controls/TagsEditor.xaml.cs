@@ -82,7 +82,7 @@ namespace _1RM.Controls
         {
             newTag = TagAndKeywordEncodeHelper.RectifyTagName(newTag);
             if (string.IsNullOrEmpty(newTag) == false
-                && Tags.Any(x => string.Equals(x, newTag, StringComparison.CurrentCultureIgnoreCase)) != true)
+                && Tags.Any(x => TagName.AreSame(x, newTag)) != true)
             {
                 Tags.Add(newTag);
             }
