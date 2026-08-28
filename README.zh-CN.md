@@ -435,7 +435,11 @@ Windows 凭据验证。
 - **导入 mRemoteNG csv**——参见上游的
   [mRemoteNG 导入说明](https://1remote.github.io/usage/overview/#importing-from-mremoteng)。
 - **从 `~/.ssh/config` 导入**——读取你的 OpenSSH 配置；其中的 `ProxyJump` 会自动在「代理」页上生成对应的
-  SSH 跳板机条目。
+  SSH 跳板机条目。`Include` 会被跟进（支持通配符、`~`、以及相对 `~/.ssh` 的路径，最多 16 层），所以拆分在
+  `~/.ssh/config.d/*` 里的配置也能整份导入。`Host *`、`Host *.internal` 这类模式块会按 ssh 的语义当作默认值
+  应用，而不是直接丢掉，并遵循 ssh「整份文件里先出现的值胜出」的顺序；`Match` 段在条件是 `all`、`host`、
+  `originalhost` 时会被读取，条件是导入对话框无法回答的那些（`exec`、`user`、`localnetwork`、`tagged` 等）
+  时整段跳过。
 - **导入 \*.rdp**——远程桌面文件。
 - **导入 PRemoteM db**——本程序早期名字下的数据库。
 

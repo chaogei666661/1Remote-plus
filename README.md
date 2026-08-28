@@ -496,7 +496,12 @@ From the **+** menu above the server list:
 - **Import mRemoteNG csv** — see the upstream
   [notes on mRemoteNG](https://1remote.github.io/usage/overview/#importing-from-mremoteng).
 - **Import from `~/.ssh/config`** — reads your OpenSSH config; any `ProxyJump` directives are turned into
-  SSH jump host entries on the Proxy page automatically.
+  SSH jump host entries on the Proxy page automatically. `Include` is followed (globs, `~`, and paths
+  relative to `~/.ssh`, up to 16 levels deep), so a config split across `~/.ssh/config.d/*` imports whole.
+  Pattern blocks such as `Host *` or `Host *.internal` are applied as the defaults ssh treats them as
+  rather than skipped, with ssh's own "first value wins across the file" ordering; `Match` sections are
+  read when their criteria are `all`, `host` or `originalhost`, and skipped whole when they are anything
+  a program filling in an import dialog cannot answer (`exec`, `user`, `localnetwork`, `tagged`, …).
 - **Import \*.rdp** — a Remote Desktop file.
 - **Import PRemoteM db** — a database from the app's earlier name.
 
