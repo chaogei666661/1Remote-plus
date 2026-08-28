@@ -83,7 +83,8 @@ This fork branched off upstream in August 2026. Everything below is new here; up
   decomposed way. The extra file was dropped from the transfer without appearing anywhere. The check was
   also quadratic: a 20 000-file folder spent about 10 seconds, and a 50 000-file one about a minute, showing
   *Scanning* before a byte moved. Both now take milliseconds, and paths that differ only in case are still
-  treated as one file.
+  treated as one file — but the transfer panel now names the ones that were, because a case-sensitive server
+  can hold both `Makefile` and `makefile` and Windows cannot, so one of them is a file that did not arrive.
 
 **New features**
 

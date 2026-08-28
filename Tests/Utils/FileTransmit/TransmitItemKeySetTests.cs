@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using _1RM.Utils.FileTransmit;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -64,6 +65,88 @@ namespace Tests.Utils.FileTransmit
             Assert.IsTrue(_set.Add(@"C:\Projects\A.txt", "/srv/up/A.txt"));
             Assert.IsFalse(_set.Add(@"c:\projects\a.txt", "/srv/up/a.txt"));
             Assert.AreEqual(1, _set.Count);
+        }
+
+        // ------------------------------------------------ saying which files the case rule swallowed
+
+        /// <summary>
+        /// The half of the case rule that is not right, and cannot be made right here: an SFTP server is
+        /// usually case-sensitive, so Makefile and makefile in one directory are two different files with
+        /// two different sets of bytes, and Windows can only hold one of them. The download drops the
+        /// second. What it must not do is drop it without saying so.
+        /// </summary>
+        [TestMethod]
+        public void ADroppedCaseCollisionIsNamed()
+        {
+            Assert.IsTrue(_set.Add("/srv/Makefile", @"C:\dl\Makefile"));
+            Assert.IsFalse(_set.Add("/srv/makefile", @"C:\dl\makefile"));
+
+            CollectionAssert.AreEqual(new[] { @"C:\dl\makefile" }, _set.CaseOnlyDuplicates.ToArray());
+        }
+
+        /// <summary>
+        /// The other half, and the reason this cannot simply report every rejected Add: the user picking a
+        /// folder and then a file inside it queues the identical pair twice. That is a real duplicate, not a
+        /// second file, and reporting it would cry wolf on the most ordinary selection there is.
+        /// </summary>
+        [TestMethod]
+        public void AnIdenticalPairIsADuplicateAndIsNotReported()
+        {
+            Assert.IsTrue(_set.Add("/srv/a.txt", @"C:\dl\a.txt"));
+            Assert.IsFalse(_set.Add("/srv/a.txt", @"C:\dl\a.txt"));
+            Assert.IsFalse(_set.Add("/srv/a.txt", @"C:\dl\a.txt"));
+
+            Assert.AreEqual(0, _set.CaseOnlyDuplicates.Count);
+        }
+
+        [TestMethod]
+        public void ACollisionIsNamedOnceHoweverOftenItIsRetried()
+        {
+            _set.Add("/srv/Makefile", @"C:\dl\Makefile");
+            _set.Add("/srv/makefile", @"C:\dl\makefile");
+            _set.Add("/srv/makefile", @"C:\dl\makefile");
+            _set.Add("/srv/MAKEFILE", @"C:\dl\makefile");
+
+            CollectionAssert.AreEqual(new[] { @"C:\dl\makefile" }, _set.CaseOnlyDuplicates.ToArray());
+        }
+
+        /// <summary>
+        /// Three spellings, two of them lost. The count is what tells the user the copy is incomplete.
+        /// </summary>
+        [TestMethod]
+        public void EveryDistinctSpellingThatWasLostIsListedInOrder()
+        {
+            _set.Add("/srv/Makefile", @"C:\dl\Makefile");
+            _set.Add("/srv/makefile", @"C:\dl\makefile");
+            _set.Add("/srv/MAKEFILE", @"C:\dl\MAKEFILE");
+
+            CollectionAssert.AreEqual(new[] { @"C:\dl\makefile", @"C:\dl\MAKEFILE" },
+                _set.CaseOnlyDuplicates.ToArray());
+            Assert.AreEqual(1, _set.Count);
+        }
+
+        [TestMethod]
+        public void NothingCollidesUntilSomethingDoes()
+        {
+            _set.Add("/srv/a.txt", @"C:\dl\a.txt");
+            _set.Add("/srv/b.txt", @"C:\dl\b.txt");
+
+            Assert.AreEqual(0, _set.CaseOnlyDuplicates.Count);
+        }
+
+        /// <summary>
+        /// The source differs only in case and the destination is spelled identically — an upload of the
+        /// same file reached through two spellings of its own local path. The destination still only
+        /// receives it once, and the pair is not byte-identical, so it is reported: on a case-sensitive
+        /// server that second name is a file that will not arrive.
+        /// </summary>
+        [TestMethod]
+        public void ACollisionInTheSourceAloneIsReportedToo()
+        {
+            Assert.IsTrue(_set.Add(@"C:\Repo\a.txt", "/srv/up/a.txt"));
+            Assert.IsFalse(_set.Add(@"C:\repo\a.txt", "/srv/up/a.txt"));
+
+            CollectionAssert.AreEqual(new[] { "/srv/up/a.txt" }, _set.CaseOnlyDuplicates.ToArray());
         }
 
         /// <summary>

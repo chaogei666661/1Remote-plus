@@ -132,6 +132,14 @@ namespace _1RM.View.Host.ProtocolHosts
                             TransferNoticeText.Count(t.FoldersNotRead).ToString(),
                             Summarise(t.FoldersNotRead)));
 
+                    // Two names that differ only in case are two files on a case-sensitive server and one
+                    // file here. Only one of them can arrive; saying which one did not is the difference
+                    // between an incomplete copy and an incomplete copy nobody knows about.
+                    if (t.NamesCollapsedByCase.Count > 0)
+                        notices.Add(IoC.Translate("file_transmit_host_warning_case_only_duplicates",
+                            TransferNoticeText.Count(t.NamesCollapsedByCase).ToString(),
+                            Summarise(t.NamesCollapsedByCase)));
+
                     if (notices.Count > 0)
                     {
                         IoMessageLevel = IoMessageLevelWarning;

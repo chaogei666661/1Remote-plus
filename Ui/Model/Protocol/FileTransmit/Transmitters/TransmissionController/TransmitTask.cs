@@ -301,6 +301,14 @@ namespace _1RM.Model.Protocol.FileTransmit.Transmitters.TransmissionController
         public IReadOnlyList<string> FoldersNotRead => _foldersNotRead;
 
         /// <summary>
+        /// Destinations dropped because something already queued differs from them only in letter case.
+        /// Downloading a case-sensitive server's directory holding both <c>Makefile</c> and <c>makefile</c>
+        /// can only produce one file here; which one it is has never been the interesting part, and that
+        /// there is a second one is.
+        /// </summary>
+        public IReadOnlyList<string> NamesCollapsedByCase => _queuedItems.CaseOnlyDuplicates;
+
+        /// <summary>
         /// remember transmittedDataLength in timespan to calculate transmit speed.
         /// </summary>
         private readonly ConcurrentQueue<Tuple<DateTime, ulong>> _transmittedDataLength = new ConcurrentQueue<Tuple<DateTime, ulong>>();
