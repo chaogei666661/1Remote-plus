@@ -270,18 +270,7 @@ namespace _1RM.View.Host.ProtocolHosts
                     Execute.OnUIThread(() => GridLoadingVisibility = Visibility.Visible);
                     
                     //SimpleLogHelper.Debug($"ShowFolder({path}, {mode}) START");
-                    if (string.IsNullOrWhiteSpace(path))
-                        path = "/";
-                    if (path.EndsWith("/.."))
-                    {
-                        //SimpleLogHelper.Debug($"ShowFolder after path.EndsWith(/..)");
-                        path = path.Substring(0, path.Length - 3);
-                        var i = path.LastIndexOf("/", StringComparison.Ordinal);
-                        if (i > 0)
-                        {
-                            path = path.Substring(0, i);
-                        }
-                    }
+                    path = RemotePath.Resolve(path);
 
                     ObservableCollection<RemoteItem>? remoteItemInfos = null;
                     string? errorMessage = null;
@@ -864,17 +853,9 @@ namespace _1RM.View.Host.ProtocolHosts
                     if (Trans?.IsConnected() != true)
                         return;
                     SimpleLogHelper.Debug($"call CmdGoToParent");
-                    if (CurrentPath == "/")
+                    if (CurrentPath == RemotePath.ROOT)
                         return;
-                    // Ordinal, because the overload without it searches by the current culture's collation:
-                    // ICU's Thai one treats a slash as ignorable and answers the length of the string, so
-                    // on a Thai desktop the parent of every folder came out as the folder itself and this
-                    // button did nothing at all.
-                    var lastSlash = CurrentPath?.LastIndexOf("/", StringComparison.Ordinal) ?? -1;
-                    if (lastSlash >= 0)
-                    {
-                        ShowFolder(CurrentPath!.Substring(0, lastSlash));
-                    }
+                    ShowFolder(RemotePath.Parent(CurrentPath));
                 });
             }
         }
