@@ -5,6 +5,8 @@ using System.IO;
 using System.Threading.Tasks;
 using _1RM.Model;
 using _1RM.Service;
+using _1RM.Service.Audit;
+using _1RM.Utils.SessionRecording;
 using _1RM.View;
 using _1RM.View.Guidance;
 using Shawn.Utils;
@@ -115,6 +117,7 @@ namespace _1RM
         public static ConfigurationService? ConfigurationServiceObj;
         public static ThemeService? ThemeServiceObj;
         public static GlobalData GlobalDataObj = null!;
+        public static ConnectionAuditLog ConnectionAuditLogObj = null!;
 
         private static bool _isNewUser = false;
         private static DatabaseStatus _localDataConnectionStatus;
@@ -304,6 +307,10 @@ namespace _1RM
 
             ThemeServiceObj = new ThemeService(App.ResourceDictionary!, ConfigurationServiceObj.Theme);
             GlobalDataObj = new GlobalData(ConfigurationServiceObj);
+            ConnectionAuditLogObj = new ConnectionAuditLog
+            {
+                Enabled = ConfigurationServiceObj.General.AuditConnections,
+            };
         }
 
         public static void InitOnConfigure()
@@ -442,6 +449,38 @@ namespace _1RM
                 IoC.Get<TaskTrayService>().ReloadTaskTrayContextMenu();
             IoC.Get<LauncherWindowViewModel>().SetHotKey();
             WarnAboutPlaceholderSaltOnce();
+            PruneRetainedFiles();
+        }
+
+        /// <summary>
+        /// Applies the retention policies once per launch, off the UI thread. Both folders grow with use
+        /// and neither had a limit: audit day files accumulate for ever, and a terminal recording holds
+        /// everything that crossed the screen, so an unbounded folder of them is both a disk problem and a
+        /// disclosure one.
+        /// </summary>
+        private static void PruneRetainedFiles()
+        {
+            var cfg = ConfigurationServiceObj;
+            if (cfg == null) return;
+            var auditDays = cfg.General.AuditRetentionDays;
+            var logDays = cfg.General.SessionLogRetentionDays;
+            var logMegabytes = cfg.General.SessionLogRetentionMegabytes;
+            var logFolder = string.IsNullOrWhiteSpace(cfg.General.SessionLogFolder)
+                ? AppPathHelper.Instance.SessionLogDirPath
+                : cfg.General.SessionLogFolder;
+
+            Task.Run(() =>
+            {
+                try
+                {
+                    ConnectionAuditLog.Prune(auditDays, DateTime.UtcNow);
+                    SessionLogRetention.Prune(logFolder, logDays, logMegabytes, DateTime.Now);
+                }
+                catch (Exception e)
+                {
+                    SimpleLogHelper.Warning($"Retention pass failed: {e.Message}");
+                }
+            });
         }
 
         /// <summary>

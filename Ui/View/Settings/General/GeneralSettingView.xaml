@@ -220,6 +220,101 @@
                                             Command="{Binding CmdOpenSessionLogFolder}"
                                             Content="{DynamicResource session_log_open_folder}" />
                                 </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="24 8 0 0"
+                                            Visibility="{Binding SessionLogFolderVisibility}">
+                                    <TextBlock Text="{DynamicResource session_log_retention_days}"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource BackgroundTextBrush}"
+                                               Margin="0 0 10 0" />
+                                    <TextBox Width="70" Height="26"
+                                             InputMethod.IsInputMethodEnabled="False"
+                                             InputScope="Number"
+                                             VerticalContentAlignment="Center"
+                                             Text="{Binding SessionLogRetentionDays, UpdateSourceTrigger=LostFocus}" />
+                                    <TextBlock Text="{DynamicResource session_log_retention_size}"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource BackgroundTextBrush}"
+                                               Margin="16 0 10 0" />
+                                    <TextBox Width="80" Height="26"
+                                             InputMethod.IsInputMethodEnabled="False"
+                                             InputScope="Number"
+                                             VerticalContentAlignment="Center"
+                                             Text="{Binding SessionLogRetentionMegabytes, UpdateSourceTrigger=LostFocus}" />
+                                </StackPanel>
+                                <TextBlock Margin="24 4 0 0" MaxWidth="420" TextWrapping="Wrap"
+                                           Opacity="0.65" LineHeight="17"
+                                           Visibility="{Binding SessionLogFolderVisibility}"
+                                           FontSize="{DynamicResource GlobalFontSizeSmall}"
+                                           Foreground="{DynamicResource BackgroundTextBrush}"
+                                           Text="{DynamicResource session_log_retention_hint}" />
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Connection audit log -->
+                        <Grid Style="{StaticResource GridOneRow}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" SharedSizeGroup="GeneralCol1"></ColumnDefinition>
+                                <ColumnDefinition MinWidth="260" SharedSizeGroup="GeneralCol2"></ColumnDefinition>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource TextBlockTitleColumn}" Width="160"
+                                       Text="{DynamicResource audit_title}" />
+                            <StackPanel Grid.Column="1">
+                                <CheckBox IsChecked="{Binding AuditConnections, Mode=TwoWay}"
+                                          Content="{DynamicResource audit_enable}"
+                                          VerticalAlignment="Center" />
+                                <TextBlock Margin="24 4 0 0" MaxWidth="420" TextWrapping="Wrap"
+                                           Opacity="0.65" LineHeight="17"
+                                           FontSize="{DynamicResource GlobalFontSizeSmall}"
+                                           Foreground="{DynamicResource BackgroundTextBrush}"
+                                           Text="{DynamicResource audit_page_hint}" />
+                                <StackPanel Orientation="Horizontal" Margin="24 8 0 0"
+                                            Visibility="{Binding AuditDetailVisibility}">
+                                    <TextBlock Text="{DynamicResource audit_retention_days}"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource BackgroundTextBrush}"
+                                               Margin="0 0 10 0" />
+                                    <TextBox Width="70" Height="26"
+                                             InputMethod.IsInputMethodEnabled="False"
+                                             InputScope="Number"
+                                             VerticalContentAlignment="Center"
+                                             Text="{Binding AuditRetentionDays, UpdateSourceTrigger=LostFocus}" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="24 8 0 0"
+                                            Visibility="{Binding AuditDetailVisibility}">
+                                    <Button Height="26" MinWidth="90"
+                                            Style="{StaticResource GlassGhostButtonStyle}"
+                                            Command="{Binding CmdOpenAuditFolder}"
+                                            Content="{DynamicResource audit_open_folder}" />
+                                    <Button Height="26" MinWidth="90" Margin="8 0 0 0"
+                                            Style="{StaticResource GlassGhostButtonStyle}"
+                                            Command="{Binding CmdExportAudit}"
+                                            Content="{DynamicResource audit_export}" />
+                                    <Button Height="26" MinWidth="90" Margin="8 0 0 0"
+                                            Style="{StaticResource GlassGhostButtonStyle}"
+                                            Command="{Binding CmdClearAudit}"
+                                            Content="{DynamicResource audit_clear}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Diagnostics bundle -->
+                        <Grid Style="{StaticResource GridOneRow}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" SharedSizeGroup="GeneralCol1"></ColumnDefinition>
+                                <ColumnDefinition MinWidth="260" SharedSizeGroup="GeneralCol2"></ColumnDefinition>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource TextBlockTitleColumn}" Width="160"
+                                       Text="{DynamicResource diagnostics_title}" />
+                            <StackPanel Grid.Column="1">
+                                <TextBlock MaxWidth="420" TextWrapping="Wrap"
+                                           Opacity="0.65" LineHeight="17"
+                                           FontSize="{DynamicResource GlobalFontSizeSmall}"
+                                           Foreground="{DynamicResource BackgroundTextBrush}"
+                                           Text="{DynamicResource diagnostics_hint}" />
+                                <Button Height="26" MinWidth="150" Margin="0 8 0 0" HorizontalAlignment="Left"
+                                        Style="{StaticResource GlassGhostButtonStyle}"
+                                        Command="{Binding CmdExportDiagnostics}"
+                                        Content="{DynamicResource diagnostics_export}" />
                             </StackPanel>
                         </Grid>
 

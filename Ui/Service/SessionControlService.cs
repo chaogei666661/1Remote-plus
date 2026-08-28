@@ -325,6 +325,7 @@ namespace _1RM.Service
         {
             host.OnClosed -= OnRequestCloseConnection;
             host.OnFullScreen2Window -= this.MoveSessionToTabWindow;
+            AuditSessionClosed(host.ConnectionId);
             _hostToBeDispose.Enqueue(host);
             detachedHosts.Add(host);
         }

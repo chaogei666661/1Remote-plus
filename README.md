@@ -39,6 +39,8 @@ installation keeps its data, its autostart entry and its saved credentials when 
 - [The main window](#the-main-window)
 - [The launcher](#the-launcher)
 - [Sessions, tabs and windows](#sessions-tabs-and-windows)
+- [Connection audit log](#connection-audit-log)
+- [Diagnostics bundle](#diagnostics-bundle)
 - [What each server entry can do](#what-each-server-entry-can-do)
 - [Protocols](#protocols)
 - [Credentials and secrets](#credentials-and-secrets)
@@ -312,6 +314,45 @@ Inside a session window:
 - **Session recording** — `Options → General → Record terminal session output to a file` writes everything
   SSH, Telnet and serial sessions print into `.sessionlogs/` (or a folder you choose). Off by default: a
   session log holds whatever crossed the screen, which regularly includes output nobody meant to keep.
+  Recordings are pruned on each launch by two limits you can set next to the folder — an age in days
+  (30 by default) and a total size in MB (1024 by default). Either can be set to 0 to turn it off; the
+  oldest go first, and only `*.log` in the top level of the folder is touched.
+- **Connection failures are classified.** SSH, SFTP, FTP, VNC and the proxy relays used to print the raw
+  library message into the error panel. They now say which of fifteen categories it was — the name does not
+  resolve, nothing is listening on that port, the credentials were refused, the host identity changed — with
+  the original message kept underneath, and only the categories where a retry could plausibly work offer one.
+
+## Connection audit log
+
+`Options → General → Connection audit` keeps a local record of which server was connected to, when, by which
+account, through which proxy, and how it ended. It answers the question that comes up after an incident and
+that a last-connect timestamp cannot: who reached that host, from which machine, and did it succeed.
+
+- Written to `.locality/audit/connections-YYYY-MM-DD.jsonl`, one JSON object per line, one file per UTC day.
+- Four events per attempt — started, opened, failed, closed — tied together by connection id, with the
+  session length on the close.
+- **No secrets.** The record holds the server, address, port, remote account, data source, proxy and
+  outcome. It never holds a password, a private key or a `cmd://` command.
+- Under `.locality`, so it does not travel with a synced or shared data source: it is a record of what
+  happened on *this* machine.
+- On by default, kept for 90 days. Both are settable; a retention of 0 keeps everything.
+- **Export to CSV** for a review or a ticket. Fields beginning with `=`, `+`, `-` or `@` are prefixed with an
+  apostrophe so a server name typed by somebody else cannot run as a formula when the file is opened.
+
+## Diagnostics bundle
+
+`Options → General → Diagnostics → Create a diagnostics bundle` writes a single zip to attach to a bug
+report: the application log, an environment report (version, OS, runtime, locale), your settings and your
+protocol runner definitions.
+
+Every text file in it is scrubbed first. The value of any field whose name contains `password`, `passphrase`,
+`secret`, `token`, `privatekey`, `credential` and similar is replaced with `[redacted]:<length>`, as are PEM
+private key blocks, `cmd://` external secret commands and `-pw` / `--password` arguments. The server
+database, the credential vault, host trust, command approvals, session recordings and the audit log are not
+included at all, and the environment report names neither your account nor your machine.
+
+Read it before you send it. Redaction is a filter over free text, not a proof — a password typed into a field
+that is not named like one will still be in there.
 
 ## What each server entry can do
 
@@ -462,6 +503,7 @@ folder otherwise.
 | `1Remote.dataSources.json` | Additional MySQL / PostgreSQL sources |
 | `Protocols/` | Custom protocol runners |
 | `.locality/` | Window positions, connection history, `known_hosts.json` |
+| `.locality/audit/` | Connection audit log, one `.jsonl` per UTC day |
 | `.icons/` | Server icons |
 | `.logs/1Remote.log.md` | Application log |
 | `.sessionlogs/` | Recorded terminal output, when that is enabled |
