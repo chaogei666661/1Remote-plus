@@ -10,12 +10,14 @@ using System.Windows.Controls;
 using System.Windows.Forms;
 using System.Windows.Input;
 using System.Windows.Threading;
+using _1RM.Model.Protocol.Base;
 using _1RM.Model.Protocol.FileTransmit;
 using _1RM.Model.Protocol.FileTransmit.Transmitters;
 using _1RM.Model.Protocol.FileTransmit.Transmitters.TransmissionController;
 using _1RM.Service;
 using _1RM.Service.Locality;
 using _1RM.Utils;
+using _1RM.Utils.Diagnostics;
 using Shawn.Utils;
 using Shawn.Utils.Interface;
 using Shawn.Utils.Wpf;
@@ -68,7 +70,12 @@ namespace _1RM.View.Host.ProtocolHosts
                     {
                         SimpleLogHelper.Error(e);
                         IoMessageLevel = IoMessageLevelError;
-                        IoMessage = e.Message;
+                        // SSH.NET and FluentFTP both report a refused password, an unresolvable name and a
+                        // dropped socket through messages written for a stack trace. This is the one place
+                        // an SFTP or FTP user ever sees why the session did not open, so it says which of
+                        // those it was.
+                        IoMessage = ConnectionFailureMessage.Build(
+                            ConnectionFailureClassifier.Classify(e), DescribeEndpoint(), IoC.Translate);
                     }
                     finally
                     {
@@ -79,6 +86,11 @@ namespace _1RM.View.Host.ProtocolHosts
             }
             else
                 GridLoadingVisibility = Visibility.Collapsed;
+        }
+
+        private string DescribeEndpoint()
+        {
+            return _protocol is ProtocolBaseWithAddressPort p ? $"{p.Address}:{p.GetPort()}" : "";
         }
 
         /// <summary>

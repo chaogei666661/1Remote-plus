@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Windows;
 using _1RM.Service;
+using _1RM.Service.Audit;
+using _1RM.Service.Diagnostics;
 using _1RM.Utils;
 using _1RM.Utils.Tracing;
 using Shawn.Utils;
@@ -184,6 +186,136 @@ namespace _1RM.View.Settings.General
             catch (Exception e)
             {
                 UnifyTracing.Error(e);
+            }
+        });
+
+        /// <summary>Days to keep recordings. 0 turns the age limit off.</summary>
+        public int SessionLogRetentionDays
+        {
+            get => _configurationService.General.SessionLogRetentionDays;
+            set
+            {
+                var clamped = Math.Clamp(value, 0, 3650);
+                if (SetAndNotifyIfChanged(ref _configurationService.General.SessionLogRetentionDays, clamped))
+                    _configurationService.Save();
+            }
+        }
+
+        /// <summary>Size cap for the recording folder in MB. 0 turns the size limit off.</summary>
+        public int SessionLogRetentionMegabytes
+        {
+            get => _configurationService.General.SessionLogRetentionMegabytes;
+            set
+            {
+                var clamped = Math.Clamp(value, 0, 1024 * 1024);
+                if (SetAndNotifyIfChanged(ref _configurationService.General.SessionLogRetentionMegabytes, clamped))
+                    _configurationService.Save();
+            }
+        }
+
+        #region Connection audit
+
+        public bool AuditConnections
+        {
+            get => _configurationService.General.AuditConnections;
+            set
+            {
+                if (!SetAndNotifyIfChanged(ref _configurationService.General.AuditConnections, value)) return;
+                _configurationService.Save();
+                // Now, not on the next launch: a user turning this off expects the next connection not to
+                // be recorded, and one turning it on expects the opposite.
+                var log = IoC.TryGet<ConnectionAuditLog>();
+                if (log != null)
+                    log.Enabled = value;
+                RaisePropertyChanged(nameof(AuditDetailVisibility));
+            }
+        }
+
+        public Visibility AuditDetailVisibility => AuditConnections ? Visibility.Visible : Visibility.Collapsed;
+
+        public int AuditRetentionDays
+        {
+            get => _configurationService.General.AuditRetentionDays;
+            set
+            {
+                var clamped = Math.Clamp(value, 0, 3650);
+                if (SetAndNotifyIfChanged(ref _configurationService.General.AuditRetentionDays, clamped))
+                    _configurationService.Save();
+            }
+        }
+
+        private RelayCommand? _cmdOpenAuditFolder;
+        public RelayCommand CmdOpenAuditFolder => _cmdOpenAuditFolder ??= new RelayCommand(_ =>
+        {
+            try
+            {
+                AppPathHelper.CreateDirIfNotExist(ConnectionAuditLog.DirectoryPath, isFile: false);
+                Process.Start("explorer.exe", ConnectionAuditLog.DirectoryPath);
+            }
+            catch (Exception e)
+            {
+                UnifyTracing.Error(e);
+            }
+        });
+
+        private RelayCommand? _cmdExportAudit;
+        public RelayCommand CmdExportAudit => _cmdExportAudit ??= new RelayCommand(_ =>
+        {
+            var path = SelectFileHelper.SaveFile(
+                title: IoC.Translate("audit_export"),
+                filter: "CSV|*.csv",
+                selectedFileName: $"{Assert.APP_NAME}-audit-{DateTime.Now:yyyyMMdd-HHmmss}.csv");
+            if (string.IsNullOrEmpty(path)) return;
+
+            try
+            {
+                var count = ConnectionAuditLog.ExportCsv(path!);
+                MessageBoxHelper.Info(count > 0
+                    ? IoC.Translate("audit_export_done", count.ToString(), path!)
+                    : IoC.Translate("audit_export_empty"));
+            }
+            catch (Exception e)
+            {
+                UnifyTracing.Error(e);
+                MessageBoxHelper.ErrorAlert(e.Message);
+            }
+        });
+
+        private RelayCommand? _cmdClearAudit;
+        public RelayCommand CmdClearAudit => _cmdClearAudit ??= new RelayCommand(_ =>
+        {
+            if (!MessageBoxHelper.Confirm(IoC.Translate("audit_clear_confirm"))) return;
+            try
+            {
+                ConnectionAuditLog.Clear();
+            }
+            catch (Exception e)
+            {
+                UnifyTracing.Error(e);
+                MessageBoxHelper.ErrorAlert(e.Message);
+            }
+        });
+
+        #endregion
+
+        private RelayCommand? _cmdExportDiagnostics;
+        public RelayCommand CmdExportDiagnostics => _cmdExportDiagnostics ??= new RelayCommand(_ =>
+        {
+            var path = SelectFileHelper.SaveFile(
+                title: IoC.Translate("diagnostics_export"),
+                filter: "Zip|*.zip",
+                selectedFileName: DiagnosticsBundle.SuggestedFileName());
+            if (string.IsNullOrEmpty(path)) return;
+
+            try
+            {
+                DiagnosticsBundle.Create(path!);
+                MessageBoxHelper.Info(IoC.Translate("diagnostics_export_done", path!));
+            }
+            catch (Exception e)
+            {
+                UnifyTracing.Error(e);
+                MessageBoxHelper.ErrorAlert(e.Message);
             }
         });
 

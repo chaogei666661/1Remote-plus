@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Threading;
 using _1RM.Model;
 using _1RM.Service;
+using _1RM.Service.Audit;
 using _1RM.Service.DataSource;
 using _1RM.Service.Locality;
 using _1RM.Utils.Tracing;
@@ -62,6 +63,7 @@ namespace _1RM
             builder.Bind<PortForwardService>().ToSelf().InSingletonScope();
             builder.Bind<ServerReachabilityService>().ToSelf().InSingletonScope();
             builder.Bind<HostTrustService>().ToSelf().InSingletonScope();
+            builder.Bind<ConnectionAuditLog>().ToInstance(AppInitHelper.ConnectionAuditLogObj);
 
             builder.Bind<MainWindowView>().ToSelf().InSingletonScope();
             builder.Bind<MainWindowViewModel>().ToSelf().InSingletonScope();
@@ -139,6 +141,8 @@ namespace _1RM
             IoC.Get<ServerReachabilityService>()?.Dispose();
             IoC.Get<PortForwardService>()?.Dispose();
             IoC.Get<ProxyService>()?.Dispose();
+            // After the sessions are torn down, so the closes they generate are still written.
+            IoC.Get<ConnectionAuditLog>()?.Dispose();
             if (IoC.Get<LauncherWindowViewModel>()?.View != null)
                 IoC.Get<LauncherWindowViewModel>()?.RequestClose();
             if (IoC.Get<MainWindowViewModel>()?.View != null)

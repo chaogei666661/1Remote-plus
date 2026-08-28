@@ -10,6 +10,7 @@ using _1RM.Model.Protocol.Base;
 using _1RM.Service;
 using _1RM.Service.DataSource;
 using _1RM.Utils;
+using _1RM.Utils.Diagnostics;
 using Shawn.Utils;
 using Shawn.Utils.Wpf;
 using Stylet;
@@ -190,9 +191,20 @@ namespace _1RM.View.Host.ProtocolHosts
                 catch (Exception e)
                 {
                     SimpleLogHelper.Error(e);
-                    FinishConnect(e.Message);
+                    FinishConnect(Describe(e, $"{address}:{port}"));
                 }
             });
+        }
+
+        /// <summary>
+        /// VncSharpCore throws a plain <see cref="Exception"/> for a wrong password, a server that speaks a
+        /// protocol version it will not talk to, and a socket that died mid-handshake alike, so the message
+        /// on its own tells the user nothing about which of those happened.
+        /// </summary>
+        private static string Describe(Exception e, string endpoint)
+        {
+            var failure = ConnectionFailureClassifier.Classify(e);
+            return ConnectionFailureMessage.Build(failure, endpoint, IoC.Translate);
         }
 
         /// <summary>

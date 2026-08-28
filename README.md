@@ -39,6 +39,8 @@ installation keeps its data, its autostart entry and its saved credentials when 
 - [The main window](#the-main-window)
 - [The launcher](#the-launcher)
 - [Sessions, tabs and windows](#sessions-tabs-and-windows)
+- [Connection audit log](#connection-audit-log)
+- [Diagnostics bundle](#diagnostics-bundle)
 - [What each server entry can do](#what-each-server-entry-can-do)
 - [Protocols](#protocols)
 - [Credentials and secrets](#credentials-and-secrets)
@@ -85,7 +87,8 @@ This fork branched off upstream in August 2026. Everything below is new here; up
 - **Host identity verification**, on by default: RDP certificates, SSH host keys on SFTP and FTPS
   certificates are checked against a remembered fingerprint, with an explicit per-server opt-out.
 - **Passwords from a password manager** at connect time, via a `cmd://` reference to any CLI.
-- **Reachability indicator** — an optional timer that marks each visible server green or red.
+- **Connection quality indicator** — an optional timer that grades each visible server on round-trip time,
+  jitter and unanswered checks, not just up or down.
 - **Wake on LAN** from a server's action menu.
 - **Import from `~/.ssh/config`**, including its `ProxyJump` directives.
 - **Send command** — type one command into several open terminal sessions at once, with saved snippets.
@@ -255,10 +258,25 @@ everything under it at once, or **Delete**. On a tag chip on a row, plain click 
 **Sorting.** The main menu's **Sorting** submenu orders the list by Id (your own drag order), protocol, name,
 address, or **Recently connected**. Protocol, name and address toggle between ascending and descending.
 
-**Reachability.** Turn on `Options → General → Show whether each server is reachable` and the app opens a
-connection to each visible server's port on a timer (60 s by default) and marks it green or red. It uses
-whatever proxy the server is configured with; servers behind an SSH jump host are not probed. It is off by
-default because it is traffic to every configured host on a schedule.
+**Reachability and connection quality.** Turn on `Options → General → Show whether each server is reachable`
+and the app opens a connection to each visible server's port on a timer (60 s by default). It uses whatever
+proxy the server is configured with; servers behind an SSH jump host are not probed. It is off by default
+because it is traffic to every configured host on a schedule.
+
+The dot is graded rather than binary. Each sweep's round-trip time is kept for the last ten checks, and the
+colour comes from the average, the jitter (the mean change between consecutive checks) and how many of the
+ten went unanswered:
+
+| Dot | Meaning |
+| --- | --- |
+| Green | Under 60 ms average, steady, nothing lost |
+| Lime | Under 150 ms, or up to 50 ms of jitter |
+| Amber | Under 300 ms, up to 100 ms of jitter, or 5–19% unanswered |
+| Orange | 300 ms or more, 100 ms or more of jitter, or 20% or more unanswered |
+| Red | The last check got no answer at all |
+
+Hover the dot for the numbers behind the colour. Nothing extra goes on the wire for this: the grade is built
+from the sweep that was already happening, not from a burst of probes.
 
 **Tray.** Closing the window minimises to the tray by default (`Options → General → Close button behavior`).
 The tray menu can list recently used sessions, reset the main window position, open the issue tracker, show
@@ -312,6 +330,45 @@ Inside a session window:
 - **Session recording** — `Options → General → Record terminal session output to a file` writes everything
   SSH, Telnet and serial sessions print into `.sessionlogs/` (or a folder you choose). Off by default: a
   session log holds whatever crossed the screen, which regularly includes output nobody meant to keep.
+  Recordings are pruned on each launch by two limits you can set next to the folder — an age in days
+  (30 by default) and a total size in MB (1024 by default). Either can be set to 0 to turn it off; the
+  oldest go first, and only `*.log` in the top level of the folder is touched.
+- **Connection failures are classified.** SSH, SFTP, FTP, VNC and the proxy relays used to print the raw
+  library message into the error panel. They now say which of fifteen categories it was — the name does not
+  resolve, nothing is listening on that port, the credentials were refused, the host identity changed — with
+  the original message kept underneath, and only the categories where a retry could plausibly work offer one.
+
+## Connection audit log
+
+`Options → General → Connection audit` keeps a local record of which server was connected to, when, by which
+account, through which proxy, and how it ended. It answers the question that comes up after an incident and
+that a last-connect timestamp cannot: who reached that host, from which machine, and did it succeed.
+
+- Written to `.locality/audit/connections-YYYY-MM-DD.jsonl`, one JSON object per line, one file per UTC day.
+- Four events per attempt — started, opened, failed, closed — tied together by connection id, with the
+  session length on the close.
+- **No secrets.** The record holds the server, address, port, remote account, data source, proxy and
+  outcome. It never holds a password, a private key or a `cmd://` command.
+- Under `.locality`, so it does not travel with a synced or shared data source: it is a record of what
+  happened on *this* machine.
+- On by default, kept for 90 days. Both are settable; a retention of 0 keeps everything.
+- **Export to CSV** for a review or a ticket. Fields beginning with `=`, `+`, `-` or `@` are prefixed with an
+  apostrophe so a server name typed by somebody else cannot run as a formula when the file is opened.
+
+## Diagnostics bundle
+
+`Options → General → Diagnostics → Create a diagnostics bundle` writes a single zip to attach to a bug
+report: the application log, an environment report (version, OS, runtime, locale), your settings and your
+protocol runner definitions.
+
+Every text file in it is scrubbed first. The value of any field whose name contains `password`, `passphrase`,
+`secret`, `token`, `privatekey`, `credential` and similar is replaced with `[redacted]:<length>`, as are PEM
+private key blocks, `cmd://` external secret commands and `-pw` / `--password` arguments. The server
+database, the credential vault, host trust, command approvals, session recordings and the audit log are not
+included at all, and the environment report names neither your account nor your machine.
+
+Read it before you send it. Redaction is a filter over free text, not a proof — a password typed into a field
+that is not named like one will still be in there.
 
 ## What each server entry can do
 
@@ -348,6 +405,14 @@ Any protocol's client can be swapped at `Options → Protocol`: point a runner a
 a command-line template and environment variables, and choose whether its window is hosted inside a
 1Remote Plus tab or left standalone. See the upstream [runner documentation](https://1remote.github.io/usage/protocol/runner/)
 — it still applies here.
+
+Each runner is checked as you edit it, and anything that will stop it working is listed at the top of its
+panel: no program chosen, a program that is not at the path given, a `%LIKE_THIS%` placeholder that is not
+one of the macros the protocol offers, and an empty private-key command line. That last one is the quiet
+trap — it does not fall back to the normal command line, it replaces it, so a server that has a key
+configured starts the program with no arguments at all. A mistyped macro used to produce no message
+anywhere: runners are started without a shell, so `%1RM_HOSTNAM%` reaches PuTTY as those literal characters
+and all the user sees is a client that opens and fails to connect.
 
 ## Credentials and secrets
 
@@ -462,6 +527,7 @@ folder otherwise.
 | `1Remote.dataSources.json` | Additional MySQL / PostgreSQL sources |
 | `Protocols/` | Custom protocol runners |
 | `.locality/` | Window positions, connection history, `known_hosts.json` |
+| `.locality/audit/` | Connection audit log, one `.jsonl` per UTC day |
 | `.icons/` | Server icons |
 | `.logs/1Remote.log.md` | Application log |
 | `.sessionlogs/` | Recorded terminal output, when that is enabled |
@@ -496,7 +562,12 @@ From the **+** menu above the server list:
 - **Import mRemoteNG csv** — see the upstream
   [notes on mRemoteNG](https://1remote.github.io/usage/overview/#importing-from-mremoteng).
 - **Import from `~/.ssh/config`** — reads your OpenSSH config; any `ProxyJump` directives are turned into
-  SSH jump host entries on the Proxy page automatically.
+  SSH jump host entries on the Proxy page automatically. `Include` is followed (globs, `~`, and paths
+  relative to `~/.ssh`, up to 16 levels deep), so a config split across `~/.ssh/config.d/*` imports whole.
+  Pattern blocks such as `Host *` or `Host *.internal` are applied as the defaults ssh treats them as
+  rather than skipped, with ssh's own "first value wins across the file" ordering; `Match` sections are
+  read when their criteria are `all`, `host` or `originalhost`, and skipped whole when they are anything
+  a program filling in an import dialog cannot answer (`exec`, `user`, `localnetwork`, `tagged`, …).
 - **Import \*.rdp** — a Remote Desktop file.
 - **Import PRemoteM db** — a database from the app's earlier name.
 
