@@ -18,6 +18,7 @@ using _1RM.Service;
 using _1RM.Service.Locality;
 using _1RM.Utils;
 using _1RM.Utils.Diagnostics;
+using _1RM.Utils.FileTransmit;
 using Shawn.Utils;
 using Shawn.Utils.Interface;
 using Shawn.Utils.Wpf;
@@ -687,7 +688,17 @@ namespace _1RM.View.Host.ProtocolHosts
 
                         try
                         {
-                            var tmpPath = Path.Combine(Path.GetTempPath(), SelectedRemoteItem.Name);
+                            // The name is the server's, and it lands in a path that is about to be handed to
+                            // ShellExecute. Combining it with the temp folder unchecked let a listing entry of
+                            // `..\..\Startup\x.exe` decide both where the file went and, through
+                            // fi.Directory below, where the rest of the transfer went with it.
+                            if (!DownloadPathGuard.TryResolve(Path.GetTempPath(), SelectedRemoteItem.Name, out var tmpPath))
+                            {
+                                IoMessageLevel = IoMessageLevelError;
+                                IoMessage = IoC.Translate("file_transmit_host_error_unsafe_remote_name", SelectedRemoteItem.Name);
+                                return;
+                            }
+
                             if (File.Exists(tmpPath))
                             {
                                 File.SetAttributes(tmpPath, FileAttributes.Temporary);
@@ -707,7 +718,11 @@ namespace _1RM.View.Host.ProtocolHosts
                                 t.OnTaskEnd -= OnPreviewFileTransmitEnd;
 
                                 var item = t.Items.FirstOrDefault();
-                                if (item != null)
+                                // Only a completed transfer is opened. This used to run on Cancel as well, so
+                                // a download the guard refused, or one the user stopped, still reached
+                                // ShellExecute - with a path that by then held a partial file or no file at
+                                // all, and the exception from that surfaced nowhere.
+                                if (item != null && status == ETransmitTaskStatus.Transmitted && File.Exists(item.DstPath))
                                 {
                                     // set read only
                                     File.SetAttributes(item.DstPath, FileAttributes.ReadOnly);

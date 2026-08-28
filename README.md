@@ -477,6 +477,13 @@ explicitly enabled in the backup settings, which is only ever reasonable on a lo
 **SFTP and FTPS verify host identity** on first use and refuse silently changed identities; accepted
 fingerprints live in `.locality/known_hosts.json`.
 
+**Downloads stay in the folder you chose.** A recursive download builds every local path out of names the
+server supplied, and neither protocol stops a server from answering a listing with `..\..\Startup\x.exe` or
+`C:\Windows\System32\evil.dll`. Names like those are now re-rooted under the destination or, where that is
+impossible, refused with the offending name quoted and the whole transfer stopped before anything is
+written. The same check runs on double-click preview, which downloads to the temp folder and then opens the
+file with its associated program — and preview now only opens a transfer that actually finished.
+
 **Temporary files.** Generated `.rdp` files and private-key copies are staged in a per-session directory that
 is removed when the session ends, rather than in the shared temp folder.
 

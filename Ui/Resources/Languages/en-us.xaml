@@ -91,6 +91,7 @@
     <s:String x:Key="file_transmit_host_command_save_to">Save to... (Ctrl + S)</s:String>
     <s:String x:Key="file_transmit_host_warning_same_names_title">Replace or cancel</s:String>
     <s:String x:Key="file_transmit_host_warning_same_names">The destination has {0} file(s) with the same name(s). Do you want to continue?</s:String>
+    <s:String x:Key="file_transmit_host_error_unsafe_remote_name">The transfer was stopped: the server returned the name "{0}", which points outside the folder you chose. Nothing was written there.</s:String>
     <s:String x:Key="host_reconecting_info">Reconnecting...</s:String>
     <s:String x:Key="system_options_general_title">General</s:String>
     <s:String x:Key="Run automatically at OS startup">Run automatically at OS startup(minimized)</s:String>

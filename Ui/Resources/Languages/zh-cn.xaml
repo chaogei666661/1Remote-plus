@@ -91,6 +91,7 @@
     <s:String x:Key="file_transmit_host_command_save_to">保存到...(Ctrl + S)</s:String>
     <s:String x:Key="file_transmit_host_warning_same_names_title">替换或跳过</s:String>
     <s:String x:Key="file_transmit_host_warning_same_names">目标包含{0}个同名文件，需要替换吗？</s:String>
+    <s:String x:Key="file_transmit_host_error_unsafe_remote_name">传输已中止：服务器返回的名称“{0}”指向你所选文件夹之外的位置，没有写入任何内容。</s:String>
     <s:String x:Key="host_reconecting_info">正尝试重新连接...</s:String>
     <s:String x:Key="system_options_general_title">常规</s:String>
     <s:String x:Key="Run automatically at OS startup">开机自启动(最小化)</s:String>
