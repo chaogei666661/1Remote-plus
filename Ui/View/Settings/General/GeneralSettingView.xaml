@@ -267,6 +267,15 @@
                                            FontSize="{DynamicResource GlobalFontSizeSmall}"
                                            Foreground="{DynamicResource BackgroundTextBrush}"
                                            Text="{DynamicResource audit_page_hint}" />
+                                <CheckBox IsChecked="{Binding AuditSecretAccess, Mode=TwoWay}"
+                                          Content="{DynamicResource audit_secret_access}"
+                                          Margin="0 8 0 0"
+                                          VerticalAlignment="Center" />
+                                <TextBlock Margin="24 4 0 0" MaxWidth="420" TextWrapping="Wrap"
+                                           Opacity="0.65" LineHeight="17"
+                                           FontSize="{DynamicResource GlobalFontSizeSmall}"
+                                           Foreground="{DynamicResource BackgroundTextBrush}"
+                                           Text="{DynamicResource audit_secret_access_hint}" />
                                 <StackPanel Orientation="Horizontal" Margin="24 8 0 0"
                                             Visibility="{Binding AuditDetailVisibility}">
                                     <TextBlock Text="{DynamicResource audit_retention_days}"

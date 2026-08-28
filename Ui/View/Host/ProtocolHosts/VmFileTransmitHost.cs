@@ -866,9 +866,14 @@ namespace _1RM.View.Host.ProtocolHosts
                     SimpleLogHelper.Debug($"call CmdGoToParent");
                     if (CurrentPath == "/")
                         return;
-                    if (CurrentPath?.LastIndexOf("/") >= 0)
+                    // Ordinal, because the overload without it searches by the current culture's collation:
+                    // ICU's Thai one treats a slash as ignorable and answers the length of the string, so
+                    // on a Thai desktop the parent of every folder came out as the folder itself and this
+                    // button did nothing at all.
+                    var lastSlash = CurrentPath?.LastIndexOf("/", StringComparison.Ordinal) ?? -1;
+                    if (lastSlash >= 0)
                     {
-                        ShowFolder(CurrentPath.Substring(0, CurrentPath.LastIndexOf("/")));
+                        ShowFolder(CurrentPath!.Substring(0, lastSlash));
                     }
                 });
             }

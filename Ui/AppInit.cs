@@ -121,6 +121,7 @@ namespace _1RM
         public static ThemeService? ThemeServiceObj;
         public static GlobalData GlobalDataObj = null!;
         public static ConnectionAuditLog ConnectionAuditLogObj = null!;
+        public static SecretAccessLog SecretAccessLogObj = null!;
 
         private static bool _isNewUser = false;
         private static DatabaseStatus _localDataConnectionStatus;
@@ -314,6 +315,10 @@ namespace _1RM
             {
                 Enabled = ConfigurationServiceObj.General.AuditConnections,
             };
+            SecretAccessLogObj = new SecretAccessLog
+            {
+                Enabled = ConfigurationServiceObj.General.AuditSecretAccess,
+            };
         }
 
         public static void InitOnConfigure()
@@ -477,6 +482,7 @@ namespace _1RM
                 try
                 {
                     ConnectionAuditLog.Prune(auditDays, DateTime.UtcNow);
+                    SecretAccessLog.Prune(auditDays, DateTime.UtcNow);
                     SessionLogRetention.Prune(logFolder, logDays, logMegabytes, DateTime.Now);
                 }
                 catch (Exception e)

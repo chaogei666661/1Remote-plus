@@ -8,6 +8,300 @@ saying why the reason no longer holds.
 
 ---
 
+## 2026-08-28 — fix round: the Thai locale that made every log call throw
+
+A fix round on the same branch, `cursor/rdp-dpapi-secret-audit-e31b`, not a feature round. No new
+capability, no `Ui/AppVersion.cs` change, nothing reverted. PR #15's Windows CI came back **525 passed, 1
+failed** ([run 33167197981](https://github.com/chaogei666661/1Remote-plus/actions/runs/33167197981)) on
+`BackupServiceTests.TheManifestRecordsWhenItWasTakenInUtcAndInTheGregorianCalendar`, a test the previous
+round had added:
+
+```
+System.ArgumentOutOfRangeException: startIndex cannot be larger than length of string.
+  at Shawn.Utils.SimpleLogHelperObject.MakeLog(...)  SimpleLogHelper.cs:line 393
+  at _1RM.Service.Backup.BackupService.Create        BackupService.cs:line 108
+```
+
+### What was actually wrong
+
+Not the backup, and not the test. `SimpleLogHelper.MakeLog` reads the calling frame's source file out of
+the PDB and cuts the directory off the front of it:
+
+```csharp
+if (fileName.Contains("/"))
+    fileName = fileName.Substring(fileName.LastIndexOf("/", StringComparison.Ordinal) + 1);
+if (fileName.Contains("\\"))
+    fileName = fileName.Substring(fileName.LastIndexOf("\\") + 1);   // <- no StringComparison
+```
+
+The second one takes the **current culture's collation**. ICU's Thai tailoring treats a backslash as
+ignorable, so under `th-TH` the search answers the *length* of the string rather than the position of the
+last separator, and the `Substring` that follows is one past the end. Measured here, not guessed:
+
+| culture | `path.LastIndexOf("\\")` | ordinal | `path.Length` |
+| --- | --- | --- | --- |
+| invariant / en-US | 48 | 48 | 65 |
+| **th-TH** | **65** | 48 | 65 |
+
+`/`, `_` and `.` behave the same way under `th-TH`; `Contains` is ordinal and is not affected, which is
+what gets execution into the branch in the first place.
+
+Three consequences, in order of importance:
+
+1. **On a Thai desktop this is every log call in the app, not one test.** Windows source paths are full of
+   backslashes and 106 files call `SimpleLogHelper`. Linux paths have none, the branch is never taken, and
+   that is the only reason this had never been seen.
+2. `BackupService.Create` had already written the entire archive to disk by the line that logs. The caller
+   was told the backup had failed.
+3. The line number in the CI stack trace (393) is the Release build's, four lines off the `Substring` at
+   399. The submodule is at the pinned `7479754`, unmodified.
+
+### Taken
+
+| # | Change | Why this one |
+| --- | --- | --- |
+| 1 | `Ui/Utils/BestEffortLog.cs`, and `BackupService`'s four log calls through it | The crash is in a submodule that is not ours to correct. What is ours is the rule that a finished piece of work is not failed by a line written about it |
+| 2 | `StringComparison.Ordinal` in `VmFileTransmitHost.CmdGoToParent` and `CredentialPrompt.LogonUser` | Found by grepping our own code for the same call shape. Neither crashes; both quietly do the wrong thing under `th-TH` |
+
+`BestEffortLog.Write` takes the log call as an `Action` rather than as a message. That is not decoration:
+a lambda is compiled into the type that wrote it, so the frame `MakeLog` walks back to is still the call
+site's own file and line. A helper that took a string would have put `BestEffortLog.cs` on every warning
+in the app — which is exactly the field the crashing code was computing.
+
+### Rejected, and why
+
+| Idea | Why not |
+| --- | --- |
+| **Patch `SimpleLogHelper.cs`** (one `StringComparison.Ordinal`) | It is the `VShawn/Shawn.Utils` submodule, pinned at `7479754` and not committed from this repository. A local edit would be invisible to CI, which checks the submodule out at the pin, and would be lost on the next update. The right home for it is a PR upstream — written down below |
+| **Turn logging off in the test** | Hides a live product bug behind a test setting. `Create` would still throw on a real Thai desktop, and the test that is supposed to be about the manifest would have acquired a reason to be read as being about the logger |
+| **Change the log message** | Nothing about the message is sliced. `MakeLog` slices the *source path of the caller*, which no call site can influence |
+| **Pin `CultureInfo` inside `BackupService`** | The bug is not the backup's; every other caller would still have it, and a method that quietly changes the ambient culture to write a log line is worse than the line being lost |
+| **`<DeterministicSourcePaths>` / `<PathMap>` in `Ui.csproj`** so the PDB records `/_/…` with no backslash | Would fix CI and release builds by coincidence and leave a developer's local Debug build on a Thai machine crashing on the first log line. Also changes what every stack trace and every debugger session sees, to work around a bug in one `Substring` |
+| **A `try`/`catch` at each of the four call sites instead of a helper** | Same behaviour, four copies of a paragraph explaining why. And nowhere to point the next call site that needs it |
+| **Route all 106 files through `BestEffortLog`** | A fix round is not the place for a 106-file diff, and most of those call sites are already inside a `try` that would swallow it. `BackupService` is where CI caught it and where a lost line costs a completed backup |
+| **Fix `Substring(0, lastSlash)` giving `""` for `/foo` in `CmdGoToParent`** | Real, and pre-existing under every locale — the parent of `/foo` should be `/`, not the empty string. It is a behaviour change on the file-transmit host, which is not what this round is. Written down below |
+
+### What landed
+
+| Commit | |
+| --- | --- |
+| `e1019d9c` | `fix(backup): a Thai locale made every log call throw, and took the finished backup with it` |
+| `3c4dd940` | `fix(i18n): two more places where a Thai locale made a string search answer the wrong thing` |
+
+New file: `Ui/Utils/BestEffortLog.cs` (37 lines). New tests: `Tests/Utils/BestEffortLogTests.cs` (3) and
+two added to `Tests/Service/Backup/BackupServiceTests.cs` — 5 in all. No language keys, no settings, no
+README change; nothing user-visible changed except that a Thai desktop can now take a backup.
+
+### Verification
+
+`dotnet build Tests/Tests.csproj -c Debug -p:EnableWindowsTargeting=true` with SDK 9.0.x — **0 errors, 120
+warnings**, the count `main` builds with.
+
+Level 2 of §7, and this time the Windows-only failure was reproduced **on Linux**. A throwaway `net9.0`
+MSTest project outside the repository compiled the real `BestEffortLog.cs`, `BackupService.cs`,
+`TimestampedFileName.cs` and the two real test files by absolute path, against a `ProjectReference` to the
+real `Shawn.Utils.csproj`, with a stub `AppPathHelper` / `Assert` / `AppVersion` and a no-op `TestInit`.
+**18 passed, 0 failed. Nothing excluded.** The project is not in the repository and was deleted afterwards.
+
+The reproduction is a `#line` directive. `MakeLog` only misbehaves when the frame's recorded path contains
+a backslash, which on Linux it never does — but `#line 100 "D:\a\…\BackupService.cs"` makes the compiler
+record exactly that path for the code under it, with the real, unmodified `SimpleLogHelper` doing the
+slicing. `<PathMap>` was tried first and is no good for this: Roslyn normalises the replacement's
+separators to `/`.
+
+Each change was checked against the bug it claims to catch, by mutating and re-running:
+
+- With `BestEffortLog.Write`'s `catch` changed to `throw;`, **2** fail:
+  `ALoggerThatThrowsDoesNotReachTheCaller` and the harness's `BestEffortLogTurnsThatIntoNothing`.
+- With a `#line` directive at the top of the real `BackupService.cs` giving it a Windows frame path and the
+  four `BestEffortLog.Write(…)` calls reverted to bare `SimpleLogHelper` calls, **3** fail — including
+  `TheManifestRecordsWhenItWasTakenInUtcAndInTheGregorianCalendar` with the identical
+  `ArgumentOutOfRangeException`, which is the CI failure, on Linux. With the `#line` in place and the
+  guard restored, all 18 pass again. Both mutations were reverted; the tree is the two commits above.
+- The harness's `TheFrameThisHarnessFakesReallyDoesCarryABackslash` asserts the throw itself, so the
+  reproduction cannot rot into a test that passes because nothing happens.
+
+The two `StringComparison.Ordinal` fixes are **not covered by a test** and were not executed: one is a
+`RelayCommand` inside the file-transmit view model, the other a `LogonUser` P/Invoke. They are one-word
+changes whose old behaviour is in the table above.
+
+Needing a Windows reviewer: nothing new beyond what the previous round's entry already lists. The Thai
+behaviour itself is worth one check if a reviewer has a machine to spare — set the Windows display
+language to Thai, take a backup, and confirm it reports success.
+
+### For the next round
+
+1. **A PR to `VShawn/Shawn.Utils`** adding `StringComparison.Ordinal` to `MakeLog`'s
+   `LastIndexOf("\\")` and to `CleanUpLogFiles`'s `LastIndexOf("_")`. One word each, and it fixes the
+   crash for every caller of that library rather than for the four call sites this round guarded. Until
+   it lands and the submodule pin moves, a Thai desktop still loses log lines from the other 106 files —
+   it just no longer crashes in `BackupService`.
+2. `CmdGoToParent` returns `""` rather than `"/"` as the parent of `/foo`, under every locale.
+3. Everything on the previous round's list is unchanged and still stands: .NET 10 first.
+
+---
+
+## 2026-08-28 — the .rdp password every account on the PC could read, and the export nobody recorded
+
+Branch `cursor/rdp-dpapi-secret-audit-e31b`, off `main` at `c24c26d6` (v1.3.0.26). Opened on the release, as
+§0 says, about three hours late through no fault of the round. Took item 2 and item 3 of the last round's
+"For the next round" list, and went looking for one new finding rather than filling the round out of the
+backlog.
+
+### What the research turned up
+
+**Nothing to port and nothing to patch, for the seventh round running.** `1Remote/1Remote`'s newest release
+is still `1.3-prerelease` (2026-04-29), stable still 1.2.1 from August 2025. `chaogei/1Remote-Plus`'s newest
+commits are the release plumbing this fork already has plus the four bare `Model:` commits. `dotnet restore
+Ui/Ui.csproj` emits no `NU19xx`: no direct or transitive package has a live advisory.
+
+**The new finding is in the oldest file in the tree.** `Ui/Utils/RdpFile/DataProtection.cs` is third-party
+code from 2007 that nothing since has read. Its `ProtectData` overloads default to
+`CRYPTPROTECT_UI_FORBIDDEN | CRYPTPROTECT_LOCAL_MACHINE`, and `RdpConfig`'s constructor is the only caller:
+it is what produces the `password 51:b:` line of every `.rdp` this app writes.
+
+`CRYPTPROTECT_LOCAL_MACHINE` keys the blob to the **machine** rather than to the user. Any account on that
+PC, and any service running on it, can call `CryptUnprotectData` on the file and get the cleartext password
+back — no master key theft, no privilege needed beyond being able to read the file.
+
+| Where a .rdp with that blob ends up | Who can read the password out of it |
+| --- | --- |
+| The per-session temp directory mstsc is launched from | any other account on the machine that can reach the file |
+| Wherever **Export \*.rdp** was told to write | the same, plus whoever the user copied it to on that machine |
+| `RdpFormView` / `RdpAppFormView`'s preview file | the same |
+
+The ACL work of an earlier round narrows the temp case; it does nothing for the export. mstsc protects a
+saved password with the user's key — that is exactly why a `.rdp` somebody else opens just prompts — so the
+flag bought nothing and cost the property that makes a saved password safe to have on disk at all.
+
+Two smaller defects in the same four lines. `ProtectData` returns `null` when DPAPI declines and the caller
+did `BitConverter.ToString(null)`, so a DPAPI failure was a crash on the connect path rather than a prompt.
+And the `CryptProtectData` DllImport had no `SetLastError`, so the `GetLastWin32Error` two lines below it
+read whatever an unrelated call had left behind — then formatted the message into a `StringBuilder` and
+dropped it on the floor.
+
+**Item 2, carried over: the audit log stops at connections.** It records who reached which host. It records
+nothing when an operator exports every password in the list to a JSON file in cleartext, copies one to the
+clipboard, or packs the credential database into a `.1rbak` and carries it off — which is what an
+insider-threat or leaver review asks for first. The last round deferred this because it wants a record shape
+that is not connection-shaped, which is right: half of these events involve no host at all, and they have a
+destination and a count where a connection has a port and a duration.
+
+**Item 3, carried over, confirmed:** `BackupService.SuggestedFileName` interpolated `DateTime.Now`, so the
+year came out in the ambient calendar. The manifest's `created=` line had the same problem and was in local
+time as well.
+
+### Taken
+
+| # | Change | Why this one |
+| --- | --- | --- |
+| 1 | Drop `CRYPTPROTECT_LOCAL_MACHINE`; `EncodePassword`; `SetLastError` | A stored password readable by every other account on the machine, from a file this app writes on every mstsc connect. One flag |
+| 2 | `SecretAccessRecord` / `SecretAccessLog` / `SecretAccessCsv`, five call sites | The credential-disclosure events, which no log in the app recorded. Top of the last round's list |
+| 3 | `BackupService.SuggestedFileName` and the manifest stamp | One line each, and the last round was told to stay out of the file |
+
+### Rejected, and why
+
+| Idea | Why not this round |
+| --- | --- |
+| **Move to .NET 10** | Out of scope by instruction for the seventh round. Support for .NET 9 ends **2026-11-10**, now about ten weeks out. Still needs a round with nothing else in it |
+| **Replace the hand-rolled DPAPI P/Invoke with `System.Security.Cryptography.ProtectedData`** | That type is a NuGet package on .NET Core, not part of the framework. Adding a dependency to change one flag is a worse trade than changing the flag, and the P/Invoke is otherwise correct |
+| **Match mstsc's `psw` description string too** | `szDataDescr` is metadata that plays no part in decryption. Changing it would alter every blob this app has ever written for no observable effect |
+| **Stop writing a password into the exported `.rdp` at all** | The export exists so the file can be double-clicked. A `.rdp` that always prompts is a `.rdp` the user will edit by hand, and user-scoped DPAPI is the protection mstsc itself considers adequate |
+| **Throw a `CryptographicException` when DPAPI declines** | Also a crash, just a better-labelled one. A file without a password line makes mstsc ask, which is what the user would have done anyway |
+| **Four more values of `EAuditEvent` instead of a second record type** | `ServerListExported` has no host, no port and no duration, and a count and a destination that a connection record has nowhere to put. Squeezing them into `Reason` and `DurationSeconds` produces a log nobody can read back — and, worse, an export would show up in an access report as a connection |
+| **One day file for both record kinds** | Newtonsoft ignores unknown fields and defaults missing ones, so a credential line read as a connection would come back as a `ConnectStarted` to port 0: a fabricated connection in an access report. Two prefixes, and two tests that each log refuses to read the other's lines |
+| **Put the credential events under the existing `AuditConnections` switch** | The section is called "Connection audit" and an organisation may want one trail without the other. A second checkbox, `AuditSecretAccess`, on by default, sharing the retention setting, the folder and the delete button |
+| **One CSV with both record kinds** | The columns do not overlap enough for one table; a union would be mostly empty cells and would change `AuditCsv.Header`, which is a format that has shipped. The export writes a `-secrets` sibling next to the file the user named |
+| **A second save dialog for the credential CSV** | Two dialogs for one button, to produce two files that belong in the same folder anyway |
+| **Record the *contents* of what was exported (which servers were in the selection)** | The count and the destination answer the review question. A list of server names in an audit line would make the log itself an inventory of the estate, which is the thing an audit file is most likely to be forwarded outside the company |
+| **Audit-log a *reveal* of a password in the editor** | There is no single choke point for it — the editor binds the field, and Windows Hello already gates it. Would mean touching the editor's data binding for a weaker event than the four that were taken |
+| **Also record `DiagnosticsExported`** | The bundle is scrubbed: no database, no vault, no `cmd://` command, no host trust. Nothing leaves with it, so it is not a credential-access event |
+| **Rename the `audit_title` string to something wider than "Connection audit"** | The key exists in `en-us.xaml` and `zh-cn.xaml` only, so the value could be edited — but the section still is the connection audit, with the credential switch under it. Changing the heading would make the first checkbox read oddly |
+| **Fix `RdpConfig`'s `rdp.DisplayName + ".rdp"` export name** | Real — the connect path strips invalid file-name characters and the export path does not — but it is a category-4 defect and this round already had two security changes and a refactor of the audit log in it. Written down below |
+| **Remove `~VmFileTransmitHost()`** | Carried over unchanged for the fourth round: it cancels a token nobody registered on, so it cannot throw |
+| **Session tab mute / read-only / lock; RDP per-monitor selection; the legacy-SSH toggle** | Carried over for the seventh round. All three still need a human at a Windows keyboard |
+
+### What landed
+
+| Commit | |
+| --- | --- |
+| `a4c2075d` | `security(rdp): the password in a generated .rdp could be read by any other account on the PC` |
+| `83f02074` | `security(audit): nothing was recorded when a password or the whole server list left the app` |
+| `225eb89f` | `fix(backup): a backup taken on a Thai-locale desktop was named 2569 and dated in local time` |
+
+New files: `Ui/Service/Audit/IAuditRecord.cs`, `AuditDayFiles.cs`, `AuditLogBase.cs`, `SecretAccessRecord.cs`,
+`SecretAccessLog.cs`, `SecretAccessCsv.cs`, `SecretAccessAudit.cs`.
+`ConnectionAuditLog.cs` shrank from 279 lines to 89 by moving its file mechanics and its writer thread into
+the two shared files; its public surface and all fifteen of its tests are unchanged. (The commit message on
+`83f02074` says "seventeen tests" — there are fifteen. Left as written rather than rewriting a pushed
+commit.)
+
+New tests: `Tests/Service/Audit/SecretAccessLogTests.cs` (20), `SecretAccessCsvTests.cs` (6),
+`Tests/Utils/RdpFile/RdpConfigPasswordTests.cs` (5), and three added to
+`Tests/Service/Backup/BackupServiceTests.cs` — 34 in all.
+
+Three new language keys in both `en-us.xaml` and `zh-cn.xaml` (540 keys each, no key in one and not the
+other), and two existing values reworded because "delete every recorded connection" now deletes more than
+that. One new setting, `AuditSecretAccess`, with a checkbox under **Settings → General → Connection audit**.
+`README.md` and `README.zh-CN.md` updated for all three changes.
+
+### Verification
+
+`dotnet build Tests/Tests.csproj -c Debug -p:EnableWindowsTargeting=true --no-incremental` with SDK
+9.0.317 — **0 errors, 120 warnings**, which is the count `main` builds with.
+
+Level 2 of §7 for all three: a throwaway `net9.0` MSTest project compiling the nine audit files,
+`RdpConfig.cs`, `DataProtection.cs`, `BackupService.cs`, `Assert.cs`, `AppVersion.cs` and
+`TimestampedFileName.cs` by absolute path, together with seven real test files, a no-op `TestInit`, a stub
+`AppPathHelper` (the real one has `using System.Windows;`) and a `ProjectReference` to `Shawn.Utils.csproj`.
+**71 passed, 0 failed. Nothing excluded.** That project is not in the repository and was deleted afterwards.
+
+Thirty-seven of those 71 are pre-existing tests — the fifteen `ConnectionAuditLogTests` in particular, which
+are the safety net for the `AuditLogBase` / `AuditDayFiles` extraction and which pass unchanged.
+
+Each change was checked against the bug it claims to catch, by mutating the file under test and re-running:
+
+- With `CRYPTPROTECT_LOCAL_MACHINE` back in `SECRET_FOR_THIS_USER`, **2** of the 5 RDP cases fail, including
+  `ThePasswordIsNotProtectedWithTheMachineKey`.
+- With `SecretAccessLog.FILE_PREFIX` set to `connections-`, **4** of the audit cases fail:
+  `TheConnectionLogNeverReadsACredentialRecord`, `TheCredentialLogNeverReadsAConnectionRecord`,
+  `PruningOneLogLeavesTheOtherAlone` and `ClearRemovesEveryDayFileOfThisLogOnly`.
+- With `SuggestedFileName` and the manifest stamp back to interpolated `DateTime.Now`, **2** of the backup
+  cases fail.
+
+One honest negative: removing the `line.Replace("\r","").Replace("\n","")` from `AuditDayFiles.Append`
+changes nothing, because Newtonsoft escapes a newline inside a JSON string before it can break the line.
+`ANewlineInADestinationCannotForgeAnExtraRecord` documents the property rather than guarding that statement.
+The strip is kept for the same reason it was kept in the code this was extracted from.
+
+Not executed anywhere, and needing a Windows reviewer:
+
+- **The DPAPI change itself.** `crypt32` does not exist here, so the flags are asserted rather than the
+  ciphertext. What to check: connect an RDP server with a saved password via the mstsc runner and confirm it
+  still logs in without prompting; then **Export \*.rdp**, and confirm mstsc run as a *different* local
+  account prompts for the password instead of connecting.
+- The **Record when a credential leaves this app** checkbox and its hint in `GeneralSettingView.xaml`, and
+  that **Export to CSV** now produces two files and names both in the message box.
+- The five recording call sites: copy password, JSON export, `.rdp` export, backup create, WebDAV upload.
+- `SecretAccessLog`'s registration in `Bootstrapper`/`AppInit` and its disposal at shutdown.
+
+### For the next round
+
+1. **.NET 10.** About ten weeks to 2026-11-10. Own round, nothing else in it. Seventh round at the top of
+   this list.
+2. `ProtocolActionHelper`'s **Export \*.rdp** offers `rdp.DisplayName + ".rdp"` as the file name without
+   stripping the characters a file name cannot hold — `ConnectRdpByMstsc` strips them for exactly this
+   reason twenty lines away. A server called `web01 / dmz` gives the save dialog a path it cannot use.
+3. `RdpFormView.xaml.cs` and `RdpAppFormView.xaml.cs` each write a preview `.rdp`; check they go through
+   `SessionTempFile` like the connect path does, now that the file's password is only user-readable and the
+   directory is the remaining protection.
+4. An "allow legacy SSH algorithms" per-server toggle, so the remaining CBC / SHA-1 set can leave the
+   default. Still wants an editor page.
+5. Session tab mute / read-only / lock, and RDP per-monitor selection — still waiting on a human at a
+   Windows keyboard.
+
+---
+
 ## 2026-08-28 — the script that ran without being asked, and the password that stayed on the clipboard
 
 Branch `cursor/session-script-gate-clipboard-secret-1e44`, off `main` at `c795bf9d` (v1.3.0.25). Opened on the

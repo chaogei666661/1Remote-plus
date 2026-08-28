@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using _1RM.Utils;
 using Shawn.Utils;
 
 namespace _1RM.Service.Backup
@@ -47,7 +49,13 @@ namespace _1RM.Service.Backup
             yield return new BackupItem("icons", paths.LocalityIconDirPath, isDirectory: true);
         }
 
-        public static string SuggestedFileName() => $"{Assert.APP_NAME}-{DateTime.Now:yyyyMMdd-HHmmss}{FILE_EXTENSION}";
+        /// <summary>
+        /// Through <see cref="TimestampedFileName"/> rather than an interpolated <c>DateTime.Now</c>,
+        /// because that formats the year in the current culture's calendar: the same backup was named
+        /// 2026… on most desktops, 2569… under a Thai locale and 1448… under a Hijri one, so a folder of
+        /// them from a mixed fleet neither sorted nor matched. A file name is an identifier.
+        /// </summary>
+        public static string SuggestedFileName() => TimestampedFileName.For(Assert.APP_NAME, FILE_EXTENSION);
 
         /// <summary>
         /// Writes every configured path into <paramref name="archivePath"/>. Returns how many entries were
@@ -72,7 +80,10 @@ namespace _1RM.Service.Backup
             {
                 writer.WriteLine($"{Assert.APP_NAME} backup");
                 writer.WriteLine($"version={AppVersion.Version}");
-                writer.WriteLine($"created={DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+                // Invariant and UTC, for the same reason as the file name, plus one of its own: "created"
+                // is the field somebody compares two archives by, and local time makes two backups taken a
+                // minute apart in different zones look hours apart.
+                writer.WriteLine($"created={DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)}Z");
             }
 
             foreach (var item in Items())
@@ -94,7 +105,10 @@ namespace _1RM.Service.Backup
                 }
             }
 
-            SimpleLogHelper.Info($"BackupService: wrote {count} entries to {archivePath}");
+            // Through BestEffortLog because the archive on disk is complete by this line, and a logger that
+            // cannot format its own prefix - which is what SimpleLogHelper does under a Thai locale on
+            // Windows - must not turn a backup that worked into one the caller is told failed.
+            BestEffortLog.Write(() => SimpleLogHelper.Info($"BackupService: wrote {count} entries to {archivePath}"));
             return count;
         }
 
@@ -127,7 +141,9 @@ namespace _1RM.Service.Backup
             }
             catch (Exception e)
             {
-                SimpleLogHelper.Warning($"BackupService: {archivePath} is not readable as a backup, {e.Message}");
+                // The whole job of this method is to answer yes or no, so a throw from the log line inside
+                // the handler would be the one thing it must never do.
+                BestEffortLog.Write(() => SimpleLogHelper.Warning($"BackupService: {archivePath} is not readable as a backup, {e.Message}"));
                 return false;
             }
         }
@@ -155,7 +171,9 @@ namespace _1RM.Service.Backup
                     var target = ResolveTarget(byEntryName, entry.FullName);
                     if (target == null)
                     {
-                        SimpleLogHelper.Warning($"BackupService: skipping unexpected entry '{entry.FullName}'");
+                        // Skipping an entry is a note, not an error; it must not abandon the restore
+                        // half-way through the entries that were fine.
+                        BestEffortLog.Write(() => SimpleLogHelper.Warning($"BackupService: skipping unexpected entry '{entry.FullName}'"));
                         continue;
                     }
 
@@ -166,7 +184,7 @@ namespace _1RM.Service.Backup
                 }
             }
 
-            SimpleLogHelper.Info($"BackupService: restored from {archivePath}");
+            BestEffortLog.Write(() => SimpleLogHelper.Info($"BackupService: restored from {archivePath}"));
         }
 
         /// <summary>

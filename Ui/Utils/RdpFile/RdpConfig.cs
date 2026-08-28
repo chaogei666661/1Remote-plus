@@ -354,6 +354,26 @@ namespace _1RM.Utils.RdpFile
         [RdpConfName("password 51:b:")]
         public string Password { get; set; } = "";
 
+        /// <summary>
+        /// The DPAPI flags <see cref="Password"/> is protected with, as an int so that a test can assert on
+        /// them without the internal enum. <c>CRYPTPROTECT_LOCAL_MACHINE</c> (0x04) must never be among
+        /// them: it would key the blob to the machine rather than to the user, and every other account on
+        /// that PC could then read the saved password out of the .rdp file.
+        /// </summary>
+        public const int PASSWORD_PROTECTION_FLAGS = (int)DataProtection.SECRET_FOR_THIS_USER;
+
+        /// <summary>
+        /// The hex form mstsc expects after <c>password 51:b:</c>, or an empty string when there is nothing
+        /// to write. Empty rather than a throw: <see cref="DataProtection.ProtectData(byte[],string)"/>
+        /// returns null when DPAPI declines, and the whole session used to die on that null instead of
+        /// falling back to mstsc asking for the password.
+        /// </summary>
+        public static string EncodePassword(byte[]? protectedBytes)
+        {
+            if (protectedBytes == null || protectedBytes.Length == 0) return "";
+            return BitConverter.ToString(protectedBytes).Replace("-", "");
+        }
+
         private readonly string _additionalSettings;
 
         public readonly string Name;
@@ -366,8 +386,10 @@ namespace _1RM.Utils.RdpFile
 
             if (string.IsNullOrEmpty(password) == false)
             {
-                // encryption for rdp file
-                Password = BitConverter.ToString(DataProtection.ProtectData(Encoding.Unicode.GetBytes(password), "")).Replace("-", "");
+                // encryption for rdp file, under this user's key - see PASSWORD_PROTECTION_FLAGS
+                Password = EncodePassword(DataProtection.ProtectData(Encoding.Unicode.GetBytes(password), ""));
+                if (Password.Length == 0)
+                    SimpleLogHelper.Warning("RdpConfig: the password could not be protected, the .rdp file will be written without one");
             }
         }
 

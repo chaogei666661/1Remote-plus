@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 using _1RM.Service;
+using _1RM.Service.Audit;
 using _1RM.Service.Backup;
 using _1RM.Utils;
 using Shawn.Utils;
@@ -71,6 +72,8 @@ namespace _1RM.View.Settings.Backup
                 // the profile holds settings the user may have changed a moment ago and not saved yet
                 Configuration.Save();
                 var count = BackupService.Create(path!);
+                // The archive holds the credential database, so where it was written is an audit event.
+                SecretAccessAudit.BackupCreated(path!, count);
                 LastResult = IoC.Translate("backup_create_done", count, path!);
             }
             catch (Exception e)
@@ -159,6 +162,8 @@ namespace _1RM.View.Settings.Backup
                 Configuration.Save();
                 var count = BackupService.Create(temporary);
                 await WebDavClient.UploadAsync(WebDav, temporary, Path.GetFileName(temporary));
+                // The destination that matters here is the server, not the temp file that is deleted below.
+                SecretAccessAudit.BackupCreated($"{WebDav.Url.TrimEnd('/')}/{Path.GetFileName(temporary)}", count, "webdav");
                 LastResult = IoC.Translate("webdav_upload_done", count.ToString(), Path.GetFileName(temporary));
                 await RefreshRemoteAsync();
             }

@@ -246,7 +246,27 @@ namespace _1RM.View.Settings.General
             }
         }
 
-        public Visibility AuditDetailVisibility => AuditConnections ? Visibility.Visible : Visibility.Collapsed;
+        /// <summary>
+        /// Independent of <see cref="AuditConnections"/>: an organisation may want the credential-disclosure
+        /// trail without a line per connection, or the other way round.
+        /// </summary>
+        public bool AuditSecretAccess
+        {
+            get => _configurationService.General.AuditSecretAccess;
+            set
+            {
+                if (!SetAndNotifyIfChanged(ref _configurationService.General.AuditSecretAccess, value)) return;
+                _configurationService.Save();
+                var log = IoC.TryGet<SecretAccessLog>();
+                if (log != null)
+                    log.Enabled = value;
+                RaisePropertyChanged(nameof(AuditDetailVisibility));
+            }
+        }
+
+        /// <summary>Retention, the folder and the export apply to both logs, so either switch shows them.</summary>
+        public Visibility AuditDetailVisibility =>
+            AuditConnections || AuditSecretAccess ? Visibility.Visible : Visibility.Collapsed;
 
         public int AuditRetentionDays
         {
@@ -285,9 +305,20 @@ namespace _1RM.View.Settings.General
             try
             {
                 var count = ConnectionAuditLog.ExportCsv(path!);
-                MessageBoxHelper.Info(count > 0
-                    ? IoC.Translate("audit_export_done", count.ToString(), path!)
-                    : IoC.Translate("audit_export_empty"));
+                // The two record shapes cannot share a table, and an auditor who asked for "the log" wants
+                // both, so the credential-access rows go to a sibling file rather than a second dialog.
+                var secretPath = SecretAccessLog.SiblingCsvPath(path!);
+                var secretCount = SecretAccessLog.ReadAll().Count > 0 ? SecretAccessLog.ExportCsv(secretPath) : 0;
+
+                if (count == 0 && secretCount == 0)
+                    MessageBoxHelper.Info(IoC.Translate("audit_export_empty"));
+                else if (secretCount == 0)
+                    MessageBoxHelper.Info(IoC.Translate("audit_export_done", count.ToString(), path!));
+                else
+                    MessageBoxHelper.Info(IoC.Translate("audit_export_done_with_secrets",
+                        count.ToString(), path!, secretCount.ToString(), secretPath));
+
+                SecretAccessAudit.AuditLogExported(count + secretCount, path!);
             }
             catch (Exception e)
             {
@@ -303,6 +334,8 @@ namespace _1RM.View.Settings.General
             try
             {
                 ConnectionAuditLog.Clear();
+                // Both, or "delete the audit log" would quietly leave the credential-access half behind.
+                SecretAccessLog.Clear();
             }
             catch (Exception e)
             {
