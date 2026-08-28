@@ -8,6 +8,135 @@ saying why the reason no longer holds.
 
 ---
 
+## 2026-08-28 — a watch the parent can poll, and the upload half of the transfer scan
+
+Branch `cursor/release-watch-and-upload-scan-2862`, off `main` at `170f6386` (v1.3.0.22). Second round of the
+release-triggered loop, and the first one started from the watch this round is about: the previous round's
+GitHub CI subscription reported `deliveryCount=0` for a run that did publish a release, nothing woke the
+parent, and the round opened about eight minutes late.
+
+### What the research turned up
+
+**Dependencies are clean.** `dotnet restore Ui/Ui.csproj` emits no `NU19xx` at all now that SSH.NET has
+moved. Twenty-one direct package references, nothing outstanding.
+
+**Neither upstream has anything to port.** `chaogei/1Remote-Plus` is 7 commits ahead and every one of them is
+release plumbing this fork already has plus four bare `Model:` commits — the same answer as two rounds ago.
+`1Remote/1Remote` is **0** commits ahead of `origin/main`; this fork is 174 ahead of it.
+
+**The upload direction, which the last round wrote down as unexamined, does not have the traversal hole it
+was suspected of** — and has two worse things instead. `ServerPathCombine(_destinationDirectoryPath, fi.Name)`
+cannot be steered anywhere: a Win32 name holds no separator, and `RemoveFirst` is prefix-only
+(`if (!value.StartsWith(find)) return value;`), so no local name can aim the remote path elsewhere. What the
+walk *did* do was follow every directory the platform listed:
+
+| | Download (already correct) | Upload (before this round) |
+| --- | --- | --- |
+| Symlink / junction directory | `item.IsDirectory && !item.IsSymlink` — listed, not descended | descended |
+| Chosen folder with no parent | n/a | `topDirectory.Parent!.FullName` → `NullReferenceException` |
+
+A link pointing at an ancestor makes the walk re-enter the same tree at a longer path each time. Measured:
+a three-file folder with one such link produced **124 phantom entries and 376-character paths** before the
+Unix symlink counter stopped it; a Windows junction has no counter, so the ceiling there is the path length.
+Whatever ends it arrives as an exception into a `catch` that only logs — so the transfer sits in `Scanning`
+and then uploads nothing, silently. A link pointing *elsewhere* — `AppData`, a mapped drive, all of `C:\` —
+was uploaded to the remote server along with the folder the user picked.
+
+**And the shared half of the scan was quietly losing files in both directions.** `AddTransmitItem`'s duplicate
+check compared both paths with `StringComparison.CurrentCultureIgnoreCase`. That is a *linguistic*
+comparison. Measured on this box, it answers "equal" for:
+
+| | |
+| --- | --- |
+| `file.txt` vs `\uFB01le.txt` | the fi ligature reads as "fi" |
+| `café.txt` precomposed vs `cafe\u0301.txt` decomposed | **macOS writes decomposed names** |
+| `note.txt` vs `note\u200B.txt` | zero-width space |
+| `note.txt` vs `note\u00AD.txt` | soft hyphen |
+
+Each of those is a second, real file on the server. It was never queued, never listed, never mentioned. The
+same check is a full scan of the pending queue per item: 1 000 files 43 ms, 5 000 files 0.6 s, 20 000 files
+**9.8 s**, 50 000 files **59 s**, all before a byte moves.
+
+### Taken
+
+| # | Change | Why this one |
+| --- | --- | --- |
+| 1 | `scripts/watch-release-iteration.sh` + runbook §0 | The loop stops being late because a subscription did not fire |
+| 2 | `LocalUploadScan`: an upload lists a folder link but does not walk into it | The mirror of a guard the download side has always had; a hang and a disclosure, from links an ordinary Windows profile is full of |
+| 3 | `TransmitItemKeySet`: the duplicate check stops eating files | Silent data loss in both directions, plus 2000× on the scan |
+
+### Rejected, and why
+
+| Idea | Why not this round |
+| --- | --- |
+| **Move to .NET 10** | Still the oldest outstanding item, still out of scope by instruction, support for .NET 9 ends 2026-11-10. Own round |
+| **Write the watch as `scripts/Watch-ReleaseIteration.ps1`**, matching the rest of `scripts/` | The agent VMs have `bash`, `gh` and `jq` and do **not** have `pwsh`. A PowerShell helper the parent cannot execute is worse than an inconsistent file extension. The runbook says so where the script is described |
+| **Have the watch open the round itself**, or add a workflow that does | Runbook §4: nothing in this repository summons agents. The script only answers a question; the parent decides. It is also why it makes no write call of any kind |
+| **Skip *file* links on upload too** | Reading through a file link is what copying that file means. It cannot loop, and it cannot pull in anything past the one file already in the folder listing the user is looking at. Refusing it would silently lose files from any project that uses symlinks |
+| **Not create the linked folder on the far side at all** | The download side lists a symlink directory as an entry and creates it empty; doing the same on upload keeps the tree shape and keeps the two directions describable in one sentence. The panel names them, so nobody finds out from the far end |
+| **Follow a link the user *chose* explicitly** (`cp -H`) | Would be defensible, and was rejected for being a second rule to hold in your head for no gain: nobody drags a junction onto the panel on purpose |
+| **Make the duplicate check ordinal, not ordinal-ignore-case** | A Windows path differing only in case is the same file, and de-duplicating it was the one thing the old check got right. `Makefile` and `makefile` from a Linux server still collapse into one — but Windows could not have stored both anyway, and turning that into a hard failure is a separate decision with a different blast radius |
+| **Join the two paths into one hash key** | A POSIX name may contain a newline, or any other character that looks like a safe separator, so one pair's key can be spelled by a different pair. That is the same silent drop in a new place; the key is a tuple. There is a test for it |
+| **Report the case-collision files that the duplicate check still swallows** | Real, but it needs a message, a place to put it, and a decision about whether the transfer should stop. Worth its own change rather than a rider on this one |
+| **The `~TransmitTask()` finaliser calls `TryCancel()`, which raises `PropertyChanged` and invokes `OnTaskEnd` on the finaliser thread** | Genuinely wrong — an exception out of a finaliser takes the process with it, without a dialog. Left alone: by the time it runs the handlers have unsubscribed themselves and the bindings are gone, so it is latent rather than reachable, and removing a finaliser deserves more than a drive-by. Written down here so the next round does not have to find it again |
+| **Session tab mute / read-only / lock; RDP per-monitor selection** | Carried over again. Still needs a human at a Windows keyboard |
+
+### What landed
+
+| Commit | |
+| --- | --- |
+| `a3bb7add` | `ops: let the parent decide in one read-only command whether to open a round` |
+| `1e73b5bd` | `security(sftp): an upload no longer walks through a folder link` |
+| `b0b674eb` | `fix(transfer): stop the scan dropping files it decided were the same word` |
+
+New tests: `Tests/Utils/FileTransmit/LocalUploadScanTests.cs` (15, new file),
+`Tests/Utils/FileTransmit/TransmitItemKeySetTests.cs` (12, new file).
+
+### Verification
+
+`dotnet build Tests/Tests.csproj -c Debug -p:EnableWindowsTargeting=true` on Linux with SDK 9.0.317 —
+**0 errors**, and 118 warnings, which is exactly the count `main` builds with. The suite cannot be *run*
+here; CI on `windows-latest` is the first place it executes.
+
+All 27 new tests were **executed here** by the §7.2 harness, together with the 22 `DownloadPathGuard` cases
+that share the file under test: a throwaway `net9.0` MSTest project compiling `LocalUploadScan.cs`,
+`TransmitItemKeySet.cs`, `DownloadPathGuard.cs` and the three test files by absolute path, with a no-op
+`TestInit`. **49 passed, 0 failed.** Nothing had to be excluded. The link cases build real symlinks under
+`/tmp`, so what is asserted is what the file system does and not what a string says.
+
+Both were checked against the bug they claim to catch:
+
+- With `if (IsLink(sub))` forced to `false`, three of the link tests fail and the ancestor-link test fails
+  with 124 entries where 4 are expected.
+- With the comparer put back to `CurrentCultureIgnoreCase`, five of the twelve key-set tests fail — the four
+  collisions above, and the 20 000-item case, which takes 8 seconds.
+
+`scripts/watch-release-iteration.sh` was driven through **22 cases** by a stubbed `gh`, covering every
+decision it can reach: green-release-fires-once, `--peek` not consuming, a failed run, a cancelled run,
+newest-run-wins over list order, a run still in progress, no run, no release, a live branch blocking, a stale
+branch not blocking, `--stale-hours 0`, drafts and pre-releases being skipped, newest-`publishedAt`-wins over
+list order, `--seed`, a `gh` failure reading as 2 rather than 0, `--json` validity, `--help`, and an unknown
+option. **22 passed, 0 failed.** It was also run for real against this repository, where it correctly
+reported `10` on a fresh state, `0` on the next poll, and a stale `cursor/*` branch as not blocking. Neither
+harness is in the repository.
+
+Not executed anywhere: the one line of view-model wiring that turns `TransmitTask.LinksNotFollowed` into an
+`IoMessage`. See the pull request for the manual steps.
+
+### For the next round
+
+1. **.NET 10.** Support for .NET 9 ends 2026-11-10. Own round. Still the oldest outstanding item.
+2. The `~TransmitTask()` finaliser (see the rejection table) — raising `PropertyChanged` and invoking
+   `OnTaskEnd` from the finaliser thread is a process-killer waiting for the right timing.
+3. Two downloaded names that differ only in case still collapse into one, silently. Windows cannot store
+   both; saying so is the missing part.
+4. An "allow legacy SSH algorithms" per-server toggle, which would let the remaining CBC / SHA-1 set be
+   pruned from the default.
+5. Session tab mute / read-only / lock, and RDP per-monitor selection — both still waiting on a human at a
+   Windows keyboard.
+
+---
+
 ## 2026-08-28 — SSH.NET advisory, and the same bug class in our own code
 
 Branch `cursor/sshnet-advisory-and-hardening-8713`, off `main` at `c809ebe4` (v1.3.0.21). First round of the
