@@ -505,7 +505,9 @@ listed, junctions and symbolic links included. A link pointing back at a parent 
 that kept re-entering the same tree at a longer path each time until the platform gave out, and the upload
 then quietly did nothing; a link pointing anywhere else — `AppData`, a mapped drive, all of `C:\` — sent
 whatever was behind it to the remote server along with the folder you actually picked. A linked folder is now
-created empty on the far side and not descended into, and the transfer panel names the ones it stopped at.
+created empty on the far side and not descended into, and the transfer panel names the first few it stopped
+at and counts the rest — the status line is one row high, and an ordinary Windows profile carries a dozen
+compatibility junctions, so the full list used to fill it with the part you could already guess.
 Linked *files* are still uploaded: reading through one is what copying that file means. Uploading a whole
 drive works too, and lands in a folder named after its letter; it used to fail silently.
 

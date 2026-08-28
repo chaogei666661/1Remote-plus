@@ -93,6 +93,7 @@
     <s:String x:Key="file_transmit_host_warning_same_names">目标包含{0}个同名文件，需要替换吗？</s:String>
     <s:String x:Key="file_transmit_host_error_unsafe_remote_name">传输已中止：服务器返回的名称“{0}”指向你所选文件夹之外的位置，没有写入任何内容。</s:String>
     <s:String x:Key="file_transmit_host_warning_links_not_followed">有 {0} 个文件夹是链接（符号链接或联接），已在服务器上创建为空文件夹，其中的内容没有上传：{1}</s:String>
+    <s:String x:Key="file_transmit_host_notice_and_more">等另外 {0} 个</s:String>
     <s:String x:Key="file_transmit_host_warning_deceptive_name_title">这个文件名并不是它看上去的样子</s:String>
     <s:String x:Key="file_transmit_host_warning_deceptive_name">这个文件的名称里含有会改变显示效果的不可见字符。它的真实名称是“{0}”，打开它实际会运行与“{1}”关联的程序。仍要打开吗？</s:String>
     <s:String x:Key="host_reconecting_info">正尝试重新连接...</s:String>

@@ -117,7 +117,8 @@ namespace _1RM.View.Host.ProtocolHosts
                     // user can see full arrives empty, and that has to be said out loud.
                     IoMessageLevel = IoMessageLevelWarning;
                     IoMessage = IoC.Translate("file_transmit_host_warning_links_not_followed",
-                        t.LinksNotFollowed.Count.ToString(), string.Join(", ", t.LinksNotFollowed));
+                        TransferNoticeText.Count(t.LinksNotFollowed).ToString(),
+                        Summarise(t.LinksNotFollowed));
                 }
 
                 ThreadPool.QueueUserWorkItem(delegate
@@ -156,6 +157,16 @@ namespace _1RM.View.Host.ProtocolHosts
             }
 
             t.OnTaskEnd += func;
+        }
+
+        /// <summary>
+        /// The list half of a transfer notice, cut down to fit the one line the status bar shows. See
+        /// <see cref="TransferNoticeText"/> for why the whole list was worse than useless there.
+        /// </summary>
+        private static string Summarise(IReadOnlyList<string> paths)
+        {
+            return TransferNoticeText.Summarise(paths, TransferNoticeText.DefaultLimit,
+                omitted => IoC.Translate("file_transmit_host_notice_and_more", omitted.ToString()));
         }
 
         private int _remoteItemsOrderBy = -1;
