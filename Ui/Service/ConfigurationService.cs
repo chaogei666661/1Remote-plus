@@ -101,6 +101,19 @@ namespace _1RM.Service
         /// <summary>Empty means <see cref="AppPathHelper.SessionLogDirPath"/>.</summary>
         public string SessionLogFolder = "";
 
+        /// <summary>
+        /// Delete recordings older than this. 0 keeps them for ever, which is the wrong default for a file
+        /// that grows with every terminal session and holds whatever crossed the screen.
+        /// </summary>
+        [DefaultValue(30)]
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Populate)]
+        public int SessionLogRetentionDays = 30;
+
+        /// <summary>Total size cap for the recording folder, in MB. 0 turns the cap off.</summary>
+        [DefaultValue(1024)]
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Populate)]
+        public int SessionLogRetentionMegabytes = 1024;
+
         public int LogLevel = (int)SimpleLogHelper.EnumLogLevel.Warning;
         #endregion
 

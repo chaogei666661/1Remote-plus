@@ -5,6 +5,7 @@ using System.IO;
 using System.Threading.Tasks;
 using _1RM.Model;
 using _1RM.Service;
+using _1RM.Utils.SessionRecording;
 using _1RM.View;
 using _1RM.View.Guidance;
 using Shawn.Utils;
@@ -442,6 +443,35 @@ namespace _1RM
                 IoC.Get<TaskTrayService>().ReloadTaskTrayContextMenu();
             IoC.Get<LauncherWindowViewModel>().SetHotKey();
             WarnAboutPlaceholderSaltOnce();
+            PruneRetainedFiles();
+        }
+
+        /// <summary>
+        /// Applies the retention policy once per launch, off the UI thread. A terminal recording holds
+        /// everything that crossed the screen, so an unbounded folder of them is both a disk problem and a
+        /// disclosure one.
+        /// </summary>
+        private static void PruneRetainedFiles()
+        {
+            var cfg = ConfigurationServiceObj;
+            if (cfg == null) return;
+            var logDays = cfg.General.SessionLogRetentionDays;
+            var logMegabytes = cfg.General.SessionLogRetentionMegabytes;
+            var logFolder = string.IsNullOrWhiteSpace(cfg.General.SessionLogFolder)
+                ? AppPathHelper.Instance.SessionLogDirPath
+                : cfg.General.SessionLogFolder;
+
+            Task.Run(() =>
+            {
+                try
+                {
+                    SessionLogRetention.Prune(logFolder, logDays, logMegabytes, DateTime.Now);
+                }
+                catch (Exception e)
+                {
+                    SimpleLogHelper.Warning($"Retention pass failed: {e.Message}");
+                }
+            });
         }
 
         /// <summary>

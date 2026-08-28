@@ -187,6 +187,30 @@ namespace _1RM.View.Settings.General
             }
         });
 
+        /// <summary>Days to keep recordings. 0 turns the age limit off.</summary>
+        public int SessionLogRetentionDays
+        {
+            get => _configurationService.General.SessionLogRetentionDays;
+            set
+            {
+                var clamped = Math.Clamp(value, 0, 3650);
+                if (SetAndNotifyIfChanged(ref _configurationService.General.SessionLogRetentionDays, clamped))
+                    _configurationService.Save();
+            }
+        }
+
+        /// <summary>Size cap for the recording folder in MB. 0 turns the size limit off.</summary>
+        public int SessionLogRetentionMegabytes
+        {
+            get => _configurationService.General.SessionLogRetentionMegabytes;
+            set
+            {
+                var clamped = Math.Clamp(value, 0, 1024 * 1024);
+                if (SetAndNotifyIfChanged(ref _configurationService.General.SessionLogRetentionMegabytes, clamped))
+                    _configurationService.Save();
+            }
+        }
+
 
         public bool ShowSessionIconInSessionWindow
         {
