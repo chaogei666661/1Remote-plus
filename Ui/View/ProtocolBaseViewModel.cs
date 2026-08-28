@@ -9,6 +9,7 @@ using _1RM.Model.Protocol.Base;
 using _1RM.Service.DataSource;
 using _1RM.Service.DataSource.Model;
 using _1RM.Service.Locality;
+using _1RM.Utils;
 using _1RM.Utils.Reachability;
 using _1RM.View.Launcher;
 using Shawn.Utils;
@@ -116,7 +117,9 @@ namespace _1RM.View
                 if (_server != value)
                 {
                     _server = value;
-                    _server.Tags = _server.Tags.Select(x => x.ToLower()).ToList();
+                    // TagName.Fold, not ToLower(): this writes back to the server, so a Turkish desktop
+                    // used to rewrite every tag it displayed and put the rewrite in the shared data source.
+                    _server.Tags = _server.Tags.Select(TagName.Fold).ToList();
 
                     // rebuilt on demand, see HoverNoteDisplayControl
                     _hoverNoteDisplayControl = null;

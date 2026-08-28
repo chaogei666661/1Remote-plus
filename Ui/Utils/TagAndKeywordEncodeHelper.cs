@@ -17,13 +17,15 @@ namespace _1RM.Utils
     public static class TagAndKeywordEncodeHelper
     {
         /// <summary>
-        /// Normalizes a tag name by removing '#' characters, replacing spaces with '-', trimming, and converting to lower case.
+        /// Normalizes a tag name by removing '#' characters, replacing spaces with '-', trimming, and
+        /// converting to lower case. See <see cref="TagName"/> for why the lower-casing does not ask the
+        /// desktop's locale.
         /// </summary>
         /// <param name="name">The tag name to rectify.</param>
         /// <returns>The rectified tag name.</returns>
         public static string RectifyTagName(string? name)
         {
-            return name?.Replace("#", "").Replace(" ", "-").Trim().ToLower() ?? "";
+            return TagName.Rectify(name);
         }
 
         /// <summary>
@@ -93,7 +95,7 @@ namespace _1RM.Utils
                         continue;
 
                     // If the tag name matches a complete tag, add to filter list.
-                    if (IoC.Get<GlobalData>().TagList.Any(x => string.Equals(x.Name, tagName, StringComparison.CurrentCultureIgnoreCase)))
+                    if (IoC.Get<GlobalData>().TagList.Any(x => TagName.AreSame(x.Name, tagName)))
                     {
                         ret.TagFilterList.Add(TagFilter.Create(tagName, isExcluded ? TagFilter.FilterType.Excluded : TagFilter.FilterType.Included));
                     }
@@ -172,7 +174,7 @@ namespace _1RM.Utils
             // Check included and excluded tags.
             if (keywordDecoded.TagFilterList.Any())
             {
-                bool bTagMatched = keywordDecoded.TagFilterList.All(tagFilter => tagFilter.IsIncluded == server.Tags.Any(x => String.Equals(x, tagFilter.TagName, StringComparison.CurrentCultureIgnoreCase)));
+                bool bTagMatched = keywordDecoded.TagFilterList.All(tagFilter => tagFilter.IsIncluded == server.Tags.Any(x => TagName.AreSame(x, tagFilter.TagName)));
                 if (bTagMatched == false)
                 {
                     return new Tuple<bool, MatchResults?>(false, null);
@@ -182,7 +184,7 @@ namespace _1RM.Utils
             // Check tag names that start with a partial keyword from user input.
             if (keywordDecoded.IncludeTagsStartWithKeyWord.Any())
             {
-                bool bTagMatched = keywordDecoded.IncludeTagsStartWithKeyWord.Any(tagName => server.Tags.Any(x => String.Equals(x, tagName, StringComparison.CurrentCultureIgnoreCase)));
+                bool bTagMatched = keywordDecoded.IncludeTagsStartWithKeyWord.Any(tagName => server.Tags.Any(x => TagName.AreSame(x, tagName)));
                 if (bTagMatched == false)
                 {
                     return new Tuple<bool, MatchResults?>(false, null);

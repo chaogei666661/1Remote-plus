@@ -5,6 +5,7 @@ using System.IO;
 using System.Text;
 using Shawn.Utils;
 using _1RM.Model;
+using _1RM.Utils;
 using _1RM.Utils.Tracing;
 
 namespace _1RM.Service.Locality
@@ -61,14 +62,14 @@ namespace _1RM.Service.Locality
             {
                 Load();
             }
-            _settings.TagDict.TryGetValue(tagName.ToLower(), out var ret);
+            _settings.TagDict.TryGetValue(TagName.Fold(tagName), out var ret);
             return ret;
         }
 
         public static Tag? GetAndRemoveTag(string tagName)
         {
             Load();
-            _settings.TagDict.TryRemove(tagName.ToLower(), out var ret);
+            _settings.TagDict.TryRemove(TagName.Fold(tagName), out var ret);
             Save();
             return ret;
         }
@@ -81,7 +82,7 @@ namespace _1RM.Service.Locality
         public static void UpdateTag(Tag tag)
         {
             Load();
-            _settings.TagDict.AddOrUpdate(tag.Name.ToLower(), tag, (_, _) => tag);
+            _settings.TagDict.AddOrUpdate(TagName.Fold(tag.Name), tag, (_, _) => tag);
             Save();
         }
 
@@ -92,7 +93,7 @@ namespace _1RM.Service.Locality
             foreach (var tag in tags)
             {
                 tag.CustomOrder = i++;
-                _settings.TagDict.AddOrUpdate(tag.Name.ToLower(), tag, (_, _) => tag);
+                _settings.TagDict.AddOrUpdate(TagName.Fold(tag.Name), tag, (_, _) => tag);
             }
             Save();
         }
@@ -110,14 +111,14 @@ namespace _1RM.Service.Locality
         {
             if (load)
                 Load();
-            return _settings.TagDict.TryGetValue(key.ToLower(), out var tag) && tag.IsPinned;
+            return _settings.TagDict.TryGetValue(TagName.Fold(key), out var tag) && tag.IsPinned;
         }
 
         public static int GetCustomOrder(string key, bool load = false)
         {
             if (load)
                 Load();
-            return _settings.TagDict.TryGetValue(key.ToLower(), out var tag) ? tag.CustomOrder : 0;
+            return _settings.TagDict.TryGetValue(TagName.Fold(key), out var tag) ? tag.CustomOrder : 0;
         }
     }
 }

@@ -35,7 +35,7 @@ namespace _1RM.Controls
             get => (List<string>)GetValue(TagsProperty);
             set
             {
-                var obj = value?.Select(x => x.ToLower()).Distinct().ToList() ?? new List<string>();
+                var obj = value?.Select(TagName.Fold).Distinct().ToList() ?? new List<string>();
                 SetValue(TagsProperty, obj);
             }
         }
@@ -54,7 +54,7 @@ namespace _1RM.Controls
                 var tags = new List<string>();
                 if (value != null)
                 {
-                    tags = value.Select(x => x.ToLower()).Distinct().ToList();
+                    tags = value.Select(TagName.Fold).Distinct().ToList();
                 }
                 SetValue(TagsForSelectProperty, tags);
             }

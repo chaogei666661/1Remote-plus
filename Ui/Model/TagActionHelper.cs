@@ -19,8 +19,8 @@ public static class TagActionHelper
         var tagName = o switch
         {
             string str => str,
-            Tag tag => tag.Name.ToLower(),
-            TagFilter tagFilter => tagFilter.TagName.ToLower(),
+            Tag tag => TagName.Fold(tag.Name),
+            TagFilter tagFilter => TagName.Fold(tagFilter.TagName),
             _ => null
         };
         return tagName;
@@ -30,7 +30,7 @@ public static class TagActionHelper
     {
         // o can be a Tag or a TagFilter or a string(tag name)
         var tagName = GetTagNameFromObject(o);
-        var t = IoC.Get<GlobalData>().TagList.FirstOrDefault(x => string.Equals(x.Name, tagName, StringComparison.CurrentCultureIgnoreCase));
+        var t = IoC.Get<GlobalData>().TagList.FirstOrDefault(x => TagName.AreSame(x.Name, tagName));
         if (t != null)
         {
             t.IsPinned = !t.IsPinned;

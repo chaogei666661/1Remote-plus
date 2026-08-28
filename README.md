@@ -273,6 +273,16 @@ Keyword-Matchers`. They apply to this box as well as to the launcher.
 everything under it at once, or **Delete**. On a tag chip on a row, plain click sets it as the filter,
 **Ctrl + click** adds it to the include list, **Alt + click** adds it to the exclude list.
 
+Tag names are stored and matched in lower case, and the lower-casing no longer asks the Windows user
+locale. It used to: Turkish and Azerbaijani map `I` to the dotless `ı`, so a tag typed as `LINUX` was stored
+as `lınux` on those desktops and as `linux` on every other one. Opening a server re-folds its tags and writes
+them back, so a list shared through MySQL, PostgreSQL or a network share ended up holding both spellings —
+two tags that look identical in the tag bar, each with some of the servers, neither found by the other
+locale's filter. The same locale made `#WINDOWS` in the filter bar match nothing on a Turkish desktop. Names
+are also composed to Unicode form C before they are compared, so a tag written on macOS with a decomposed
+`é` is the same tag as the precomposed one; a tag with an invisible character in it, which used to be folded
+silently into its visible twin, is now a tag of its own and shows up as one.
+
 **Sorting.** The main menu's **Sorting** submenu orders the list by Id (your own drag order), protocol, name,
 address, or **Recently connected**. Protocol, name and address toggle between ascending and descending.
 
