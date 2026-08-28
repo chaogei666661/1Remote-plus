@@ -480,6 +480,14 @@ fingerprints live in `.locality/known_hosts.json`.
 **Temporary files.** Generated `.rdp` files and private-key copies are staged in a per-session directory that
 is removed when the session ends, rather than in the shared temp folder.
 
+**SSH transport algorithms.** SFTP sessions, SSH jump hosts and standing port forwards all negotiate through
+the bundled SSH.NET library. It offers AES-GCM and ChaCha20-Poly1305, encrypt-then-MAC integrity — which is
+what lets OpenSSH's strict key exchange engage, the mitigation for the Terrapin attack (CVE-2023-48795) —
+and the `mlkem768x25519` / `sntrup761x25519` post-quantum key exchanges. Algorithms OpenSSH turned off years
+ago are not offered at all: arcfour, blowfish, CAST, Twofish, the MD5 and RIPEMD-160 MACs, the truncated
+`-96` MACs, and `ssh-dss` host keys. A device old enough to require one of those will refuse to negotiate;
+reach it with PuTTY, which this app can launch as an external SSH runner.
+
 ## Proxies, jump hosts and port forwarding
 
 Define proxies once at `Options → Proxy`, then pick one per server in the server editor. Everything goes

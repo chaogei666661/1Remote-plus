@@ -416,6 +416,13 @@ Windows 凭据验证。
 
 **临时文件。** 生成的 `.rdp` 文件和私钥副本放在每个会话专属的目录里，会话结束即删除，而不是丢在公共临时目录中。
 
+**SSH 传输算法。** SFTP 会话、SSH 跳板机和常驻端口转发都通过内置的 SSH.NET 库协商。它提供 AES-GCM 和
+ChaCha20-Poly1305、encrypt-then-MAC 完整性算法——后者正是 OpenSSH strict key exchange 生效的前提，也就是
+Terrapin 攻击（CVE-2023-48795）的缓解措施——以及 `mlkem768x25519` / `sntrup761x25519` 后量子密钥交换。
+OpenSSH 多年前就关掉的算法这里根本不会提供：arcfour、blowfish、CAST、Twofish、MD5 与 RIPEMD-160 系列 MAC、
+截断的 `-96` 系列 MAC，以及 `ssh-dss` 主机密钥。老到只认这些算法的设备会协商失败；这种设备请改用 PuTTY，
+本程序可以把它作为外部 SSH 运行器启动。
+
 ## 代理、跳板机与端口转发
 
 在 `设置 → 代理` 里一次性定义好代理，然后在服务器编辑页为每台服务器选择。所有流量都经过本地中转，因此
