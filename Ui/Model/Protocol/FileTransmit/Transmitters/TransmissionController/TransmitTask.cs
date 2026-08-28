@@ -155,13 +155,18 @@ namespace _1RM.Model.Protocol.FileTransmit.Transmitters.TransmissionController
             RaisePropertyChanged(nameof(TransmitItemNames));
         }
 
-        /// <summary>
-        /// Finalizes the task and attempts to cancel pending work.
-        /// </summary>
-        ~TransmitTask()
-        {
-            TryCancel();
-        }
+        // There used to be a `~TransmitTask()` here calling TryCancel(). It could only ever do harm.
+        //
+        // TryCancel raises PropertyChanged, which WPF turns into a binding update, and invokes OnTaskEnd,
+        // which is the transfer pane's own handler. On the finaliser thread, neither is allowed: a binding
+        // update off the dispatcher throws, and an exception that leaves a finaliser terminates the process
+        // without a dialog, a log line or anything else the user could act on.
+        //
+        // And it could never do good. While a transfer is running, the Task.Run in StartTransmitAsync holds
+        // this object, so it is not collectable; by the time a finaliser could run, the transfer is over,
+        // the handlers have unsubscribed and there is nothing left to cancel. The two places that really do
+        // cancel - VmFileTransmitHost.Release and the pane's cancel button - call TryCancel directly and
+        // are unaffected.
 
         /// <summary>
         /// Cancels the transmission task if it is not completed.
