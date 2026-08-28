@@ -8,6 +8,25 @@ saying why the reason no longer holds.
 
 ---
 
+## 2026-08-28 — parent merge of both cloud-agent branches
+
+Parent agent (`bc-33912fb3-71cf-4f51-90e2-b63447466687`) launched two cloud agents with
+`model=claude-opus-5-thinking-high-fast`, `environment=cloud`:
+
+| Agent | Branch | PR |
+| --- | --- | --- |
+| Enterprise audit | `cursor/enterprise-audit-hardening-ac60` | #7 |
+| Research + auto-iteration | `cursor/research-driven-feature-expansion-6a7b` | #6 |
+
+Merged locally onto `cursor/merge-enterprise-and-research-6687` (PR #8) with no conflicts. Overlap was
+only README pair + `en-us.xaml` / `zh-cn.xaml`; language keys match 1:1. `Ui/AppVersion.cs` still
+`Build = 20`.
+
+Parent verification: `dotnet build Tests/Tests.csproj -c Debug -p:EnableWindowsTargeting=true` on Linux
+with SDK 9.0.317 — **0 errors**. Feature branches are deleted after this lands on `main`.
+
+---
+
 ## 2026-08-28 — research-driven feature expansion
 
 Branch `cursor/research-driven-feature-expansion-6a7b`, off `main` at `1987b786` (v1.3.0.20).
