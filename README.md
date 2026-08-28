@@ -426,7 +426,7 @@ Right-click a row (or press **→** in the launcher):
 | Wake on LAN | Shown when the entry has a MAC address |
 | Create desktop shortcut | A `.lnk` that opens this session directly |
 | Open SFTP | On SSH entries, opens a file browser to the same host |
-| Export \*.rdp | On RDP entries |
+| Export \*.rdp | On RDP entries. The name offered in the save dialog is the display name with anything a Win32 file name cannot hold taken out of it |
 
 ## Protocols
 
