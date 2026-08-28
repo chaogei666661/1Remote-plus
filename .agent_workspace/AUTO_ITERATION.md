@@ -11,10 +11,44 @@ those items has cost a previous round its work.
 
 **The loop is triggered by a release, not by a clock.** As soon as the Build/Publish CI on `main` goes green
 *and* the GitHub release is published, the parent starts the next cloud agent immediately. There is no fixed
-interval and no six-hour timer.
+interval and no six-hour batch.
 
 If CI on `main` fails, the next round is a fix round: repair the build first and publish it. No feature round
 opens on a red `main`.
+
+### How the parent notices
+
+A GitHub CI subscription is the nice-to-have, not the mechanism. It has delivered nothing at all
+(`deliveryCount=0`) on a run that did publish a release, and a round that waits for it starts late — eight
+minutes late, once. So the parent does not wait to be told:
+
+1. It holds a **`release-watch` timer that fires every 90 seconds**. The timer is the clock for *looking*,
+   not for starting a round; a round still only opens on a release.
+2. On each wake it runs one read-only command and acts on the exit code:
+
+   ```bash
+   scripts/watch-release-iteration.sh --json
+   ```
+
+   | Exit | Meaning | What the parent does |
+   | --- | --- | --- |
+   | `0` | Nothing new — no release since the last round, or CI is still running, or an iteration branch is still in flight | Go back to sleep |
+   | `10` | A newer release is published, CI on `main` is green, nothing in flight | **Start the next round now** |
+   | `20` | The newest CI run on `main` did not succeed | Start a **fix** round |
+   | `2` | The script could not answer (`gh` missing, unauthenticated, API error) | Look by hand — this is not `0` |
+
+3. A CI or PR subscription, if it does deliver, is a bonus: it just makes the parent wake sooner than the
+   next 90-second tick. Nothing depends on it.
+
+The script reads `gh release list`, `gh run list --branch main`, `git ls-remote` and GET-only `gh api`. It
+never commits, pushes, tags, opens or merges a pull request, or calls a paid API. It remembers the last tag
+it reported in one small state file **outside** the repository, so a release fires exactly once; `--peek`
+looks without consuming, `--seed` skips the current release, and `--help` prints the full contract. A
+`cursor/*` branch that is ahead of `main` blocks a new round, unless its newest commit is older than
+`--stale-hours` (12 by default) so an abandoned branch cannot deadlock the loop.
+
+It is `.sh` rather than the `.ps1` the rest of `scripts/` uses because the agent VMs have `bash`, `gh` and
+`jq` and do not have `pwsh`.
 
 ---
 
