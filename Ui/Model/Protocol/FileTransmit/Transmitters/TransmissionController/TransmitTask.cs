@@ -281,6 +281,8 @@ namespace _1RM.Model.Protocol.FileTransmit.Transmitters.TransmissionController
         /// </summary>
         public List<TransmitItem> Items { get; } = new List<TransmitItem>();
 
+        private readonly TransmitItemKeySet _queuedItems = new TransmitItemKeySet();
+
         private readonly List<string> _linksNotFollowed = new List<string>();
 
         /// <summary>
@@ -398,9 +400,11 @@ namespace _1RM.Model.Protocol.FileTransmit.Transmitters.TransmissionController
                 throw new NotSupportedException();
             }
 
-            if (!ItemsWaitForTransmit.Any(x =>
-                string.Equals(x.SrcPath, item.SrcPath, StringComparison.CurrentCultureIgnoreCase)
-                && string.Equals(x.DstPath, item.DstPath, StringComparison.CurrentCultureIgnoreCase)))
+            // The queue used to be searched from end to end for each item, comparing both paths
+            // linguistically. See TransmitItemKeySet for what that cost and, worse, what it quietly threw
+            // away. The set only grows, which matches the old check exactly: scanning finishes before
+            // anything is dequeued for transmission.
+            if (_queuedItems.Add(item.SrcPath, item.DstPath))
             {
                 ItemsWaitForTransmit.Enqueue(item);
                 Items.Add(item);

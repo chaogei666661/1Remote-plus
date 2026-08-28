@@ -75,6 +75,15 @@ This fork branched off upstream in August 2026. Everything below is new here; up
 - **UI freezes.** Credential reads and writes, SSH port-forward setup, SFTP transfers, periodic data-source
   reloads and server-list rebuilds were moved off the UI thread, so a slow network no longer locks the
   window and every hosted session inside it.
+- **A file transfer no longer loses files, or stalls, while it counts them.** Before starting, a transfer
+  checked each file against every file already queued using a *linguistic* comparison. That reads two names
+  the way a person reads two words, so it decided `file.txt` and `ﬁle.txt` (with the fi ligature) were the
+  same file, along with names differing only by a zero-width space, a soft hyphen, or whether an accent is
+  written precomposed or as a combining mark — the last of which is routine, because macOS writes names the
+  decomposed way. The extra file was dropped from the transfer without appearing anywhere. The check was
+  also quadratic: a 20 000-file folder spent about 10 seconds, and a 50 000-file one about a minute, showing
+  *Scanning* before a byte moved. Both now take milliseconds, and paths that differ only in case are still
+  treated as one file.
 
 **New features**
 
