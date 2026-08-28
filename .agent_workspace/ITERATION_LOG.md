@@ -8,6 +8,139 @@ saying why the reason no longer holds.
 
 ---
 
+## 2026-08-28 — fix round: the Thai locale that made every log call throw
+
+A fix round on the same branch, `cursor/rdp-dpapi-secret-audit-e31b`, not a feature round. No new
+capability, no `Ui/AppVersion.cs` change, nothing reverted. PR #15's Windows CI came back **525 passed, 1
+failed** ([run 33167197981](https://github.com/chaogei666661/1Remote-plus/actions/runs/33167197981)) on
+`BackupServiceTests.TheManifestRecordsWhenItWasTakenInUtcAndInTheGregorianCalendar`, a test the previous
+round had added:
+
+```
+System.ArgumentOutOfRangeException: startIndex cannot be larger than length of string.
+  at Shawn.Utils.SimpleLogHelperObject.MakeLog(...)  SimpleLogHelper.cs:line 393
+  at _1RM.Service.Backup.BackupService.Create        BackupService.cs:line 108
+```
+
+### What was actually wrong
+
+Not the backup, and not the test. `SimpleLogHelper.MakeLog` reads the calling frame's source file out of
+the PDB and cuts the directory off the front of it:
+
+```csharp
+if (fileName.Contains("/"))
+    fileName = fileName.Substring(fileName.LastIndexOf("/", StringComparison.Ordinal) + 1);
+if (fileName.Contains("\\"))
+    fileName = fileName.Substring(fileName.LastIndexOf("\\") + 1);   // <- no StringComparison
+```
+
+The second one takes the **current culture's collation**. ICU's Thai tailoring treats a backslash as
+ignorable, so under `th-TH` the search answers the *length* of the string rather than the position of the
+last separator, and the `Substring` that follows is one past the end. Measured here, not guessed:
+
+| culture | `path.LastIndexOf("\\")` | ordinal | `path.Length` |
+| --- | --- | --- | --- |
+| invariant / en-US | 48 | 48 | 65 |
+| **th-TH** | **65** | 48 | 65 |
+
+`/`, `_` and `.` behave the same way under `th-TH`; `Contains` is ordinal and is not affected, which is
+what gets execution into the branch in the first place.
+
+Three consequences, in order of importance:
+
+1. **On a Thai desktop this is every log call in the app, not one test.** Windows source paths are full of
+   backslashes and 106 files call `SimpleLogHelper`. Linux paths have none, the branch is never taken, and
+   that is the only reason this had never been seen.
+2. `BackupService.Create` had already written the entire archive to disk by the line that logs. The caller
+   was told the backup had failed.
+3. The line number in the CI stack trace (393) is the Release build's, four lines off the `Substring` at
+   399. The submodule is at the pinned `7479754`, unmodified.
+
+### Taken
+
+| # | Change | Why this one |
+| --- | --- | --- |
+| 1 | `Ui/Utils/BestEffortLog.cs`, and `BackupService`'s four log calls through it | The crash is in a submodule that is not ours to correct. What is ours is the rule that a finished piece of work is not failed by a line written about it |
+| 2 | `StringComparison.Ordinal` in `VmFileTransmitHost.CmdGoToParent` and `CredentialPrompt.LogonUser` | Found by grepping our own code for the same call shape. Neither crashes; both quietly do the wrong thing under `th-TH` |
+
+`BestEffortLog.Write` takes the log call as an `Action` rather than as a message. That is not decoration:
+a lambda is compiled into the type that wrote it, so the frame `MakeLog` walks back to is still the call
+site's own file and line. A helper that took a string would have put `BestEffortLog.cs` on every warning
+in the app — which is exactly the field the crashing code was computing.
+
+### Rejected, and why
+
+| Idea | Why not |
+| --- | --- |
+| **Patch `SimpleLogHelper.cs`** (one `StringComparison.Ordinal`) | It is the `VShawn/Shawn.Utils` submodule, pinned at `7479754` and not committed from this repository. A local edit would be invisible to CI, which checks the submodule out at the pin, and would be lost on the next update. The right home for it is a PR upstream — written down below |
+| **Turn logging off in the test** | Hides a live product bug behind a test setting. `Create` would still throw on a real Thai desktop, and the test that is supposed to be about the manifest would have acquired a reason to be read as being about the logger |
+| **Change the log message** | Nothing about the message is sliced. `MakeLog` slices the *source path of the caller*, which no call site can influence |
+| **Pin `CultureInfo` inside `BackupService`** | The bug is not the backup's; every other caller would still have it, and a method that quietly changes the ambient culture to write a log line is worse than the line being lost |
+| **`<DeterministicSourcePaths>` / `<PathMap>` in `Ui.csproj`** so the PDB records `/_/…` with no backslash | Would fix CI and release builds by coincidence and leave a developer's local Debug build on a Thai machine crashing on the first log line. Also changes what every stack trace and every debugger session sees, to work around a bug in one `Substring` |
+| **A `try`/`catch` at each of the four call sites instead of a helper** | Same behaviour, four copies of a paragraph explaining why. And nowhere to point the next call site that needs it |
+| **Route all 106 files through `BestEffortLog`** | A fix round is not the place for a 106-file diff, and most of those call sites are already inside a `try` that would swallow it. `BackupService` is where CI caught it and where a lost line costs a completed backup |
+| **Fix `Substring(0, lastSlash)` giving `""` for `/foo` in `CmdGoToParent`** | Real, and pre-existing under every locale — the parent of `/foo` should be `/`, not the empty string. It is a behaviour change on the file-transmit host, which is not what this round is. Written down below |
+
+### What landed
+
+| Commit | |
+| --- | --- |
+| `e1019d9c` | `fix(backup): a Thai locale made every log call throw, and took the finished backup with it` |
+| `3c4dd940` | `fix(i18n): two more places where a Thai locale made a string search answer the wrong thing` |
+
+New file: `Ui/Utils/BestEffortLog.cs` (37 lines). New tests: `Tests/Utils/BestEffortLogTests.cs` (3) and
+two added to `Tests/Service/Backup/BackupServiceTests.cs` — 5 in all. No language keys, no settings, no
+README change; nothing user-visible changed except that a Thai desktop can now take a backup.
+
+### Verification
+
+`dotnet build Tests/Tests.csproj -c Debug -p:EnableWindowsTargeting=true` with SDK 9.0.x — **0 errors, 120
+warnings**, the count `main` builds with.
+
+Level 2 of §7, and this time the Windows-only failure was reproduced **on Linux**. A throwaway `net9.0`
+MSTest project outside the repository compiled the real `BestEffortLog.cs`, `BackupService.cs`,
+`TimestampedFileName.cs` and the two real test files by absolute path, against a `ProjectReference` to the
+real `Shawn.Utils.csproj`, with a stub `AppPathHelper` / `Assert` / `AppVersion` and a no-op `TestInit`.
+**18 passed, 0 failed. Nothing excluded.** The project is not in the repository and was deleted afterwards.
+
+The reproduction is a `#line` directive. `MakeLog` only misbehaves when the frame's recorded path contains
+a backslash, which on Linux it never does — but `#line 100 "D:\a\…\BackupService.cs"` makes the compiler
+record exactly that path for the code under it, with the real, unmodified `SimpleLogHelper` doing the
+slicing. `<PathMap>` was tried first and is no good for this: Roslyn normalises the replacement's
+separators to `/`.
+
+Each change was checked against the bug it claims to catch, by mutating and re-running:
+
+- With `BestEffortLog.Write`'s `catch` changed to `throw;`, **2** fail:
+  `ALoggerThatThrowsDoesNotReachTheCaller` and the harness's `BestEffortLogTurnsThatIntoNothing`.
+- With a `#line` directive at the top of the real `BackupService.cs` giving it a Windows frame path and the
+  four `BestEffortLog.Write(…)` calls reverted to bare `SimpleLogHelper` calls, **3** fail — including
+  `TheManifestRecordsWhenItWasTakenInUtcAndInTheGregorianCalendar` with the identical
+  `ArgumentOutOfRangeException`, which is the CI failure, on Linux. With the `#line` in place and the
+  guard restored, all 18 pass again. Both mutations were reverted; the tree is the two commits above.
+- The harness's `TheFrameThisHarnessFakesReallyDoesCarryABackslash` asserts the throw itself, so the
+  reproduction cannot rot into a test that passes because nothing happens.
+
+The two `StringComparison.Ordinal` fixes are **not covered by a test** and were not executed: one is a
+`RelayCommand` inside the file-transmit view model, the other a `LogonUser` P/Invoke. They are one-word
+changes whose old behaviour is in the table above.
+
+Needing a Windows reviewer: nothing new beyond what the previous round's entry already lists. The Thai
+behaviour itself is worth one check if a reviewer has a machine to spare — set the Windows display
+language to Thai, take a backup, and confirm it reports success.
+
+### For the next round
+
+1. **A PR to `VShawn/Shawn.Utils`** adding `StringComparison.Ordinal` to `MakeLog`'s
+   `LastIndexOf("\\")` and to `CleanUpLogFiles`'s `LastIndexOf("_")`. One word each, and it fixes the
+   crash for every caller of that library rather than for the four call sites this round guarded. Until
+   it lands and the submodule pin moves, a Thai desktop still loses log lines from the other 106 files —
+   it just no longer crashes in `BackupService`.
+2. `CmdGoToParent` returns `""` rather than `"/"` as the parent of `/foo`, under every locale.
+3. Everything on the previous round's list is unchanged and still stands: .NET 10 first.
+
+---
+
 ## 2026-08-28 — the .rdp password every account on the PC could read, and the export nobody recorded
 
 Branch `cursor/rdp-dpapi-secret-audit-e31b`, off `main` at `c24c26d6` (v1.3.0.26). Opened on the release, as
