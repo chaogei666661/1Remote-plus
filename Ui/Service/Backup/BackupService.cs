@@ -105,7 +105,10 @@ namespace _1RM.Service.Backup
                 }
             }
 
-            SimpleLogHelper.Info($"BackupService: wrote {count} entries to {archivePath}");
+            // Through BestEffortLog because the archive on disk is complete by this line, and a logger that
+            // cannot format its own prefix - which is what SimpleLogHelper does under a Thai locale on
+            // Windows - must not turn a backup that worked into one the caller is told failed.
+            BestEffortLog.Write(() => SimpleLogHelper.Info($"BackupService: wrote {count} entries to {archivePath}"));
             return count;
         }
 
@@ -138,7 +141,9 @@ namespace _1RM.Service.Backup
             }
             catch (Exception e)
             {
-                SimpleLogHelper.Warning($"BackupService: {archivePath} is not readable as a backup, {e.Message}");
+                // The whole job of this method is to answer yes or no, so a throw from the log line inside
+                // the handler would be the one thing it must never do.
+                BestEffortLog.Write(() => SimpleLogHelper.Warning($"BackupService: {archivePath} is not readable as a backup, {e.Message}"));
                 return false;
             }
         }
@@ -166,7 +171,9 @@ namespace _1RM.Service.Backup
                     var target = ResolveTarget(byEntryName, entry.FullName);
                     if (target == null)
                     {
-                        SimpleLogHelper.Warning($"BackupService: skipping unexpected entry '{entry.FullName}'");
+                        // Skipping an entry is a note, not an error; it must not abandon the restore
+                        // half-way through the entries that were fine.
+                        BestEffortLog.Write(() => SimpleLogHelper.Warning($"BackupService: skipping unexpected entry '{entry.FullName}'"));
                         continue;
                     }
 
@@ -177,7 +184,7 @@ namespace _1RM.Service.Backup
                 }
             }
 
-            SimpleLogHelper.Info($"BackupService: restored from {archivePath}");
+            BestEffortLog.Write(() => SimpleLogHelper.Info($"BackupService: restored from {archivePath}"));
         }
 
         /// <summary>

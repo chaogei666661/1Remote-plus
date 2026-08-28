@@ -226,5 +226,67 @@ namespace Tests.Service.Backup
                 CultureInfo.CurrentCulture = original;
             }
         }
+
+        /// <summary>
+        /// A round trip under the same locale, because the calendar was not the only thing a Thai desktop
+        /// broke here. Every log call goes through <c>SimpleLogHelper</c>, which cuts the directory off the
+        /// calling frame's source path with the culture-sensitive <c>LastIndexOf("\\")</c>; ICU's Thai
+        /// collation treats a backslash as ignorable and answers the length of the string instead of the
+        /// position of the last separator, so the slice throws. On Windows, where source paths are full of
+        /// backslashes, that turned a backup that had already been written to disk into an exception out of
+        /// <see cref="BackupService.Create"/>. On Linux the frame's path has no backslash and it never
+        /// fired, which is how it reached CI unnoticed.
+        /// </summary>
+        [TestMethod]
+        public void ABackupIsStillTakenAndPutBackOnADesktopWhoseLocaleBreaksTheLogger()
+        {
+            var original = CultureInfo.CurrentCulture;
+            try
+            {
+                CultureInfo.CurrentCulture = new CultureInfo("th-TH");
+                Write(AppPathHelper.Instance.ProfileJsonPath, "{ \"profile\": true }");
+
+                Assert.AreEqual(1, BackupService.Create(_archive));
+                Assert.IsTrue(BackupService.IsBackup(_archive));
+
+                File.Delete(AppPathHelper.Instance.ProfileJsonPath);
+                BackupService.Restore(_archive);
+
+                Assert.AreEqual("{ \"profile\": true }", File.ReadAllText(AppPathHelper.Instance.ProfileJsonPath));
+            }
+            finally
+            {
+                CultureInfo.CurrentCulture = original;
+            }
+        }
+
+        /// <summary>
+        /// The same locale, over an archive with an entry that does not belong to us: <c>Restore</c> logs a
+        /// warning for it and carries on, and that warning is on the same path through the logger as the
+        /// one above.
+        /// </summary>
+        [TestMethod]
+        public void AnUnexpectedEntryIsStillOnlySkippedWhenTheLoggerCannotFormatTheWarning()
+        {
+            var original = CultureInfo.CurrentCulture;
+            try
+            {
+                CultureInfo.CurrentCulture = new CultureInfo("th-TH");
+                WriteArchive(
+                    (MANIFEST_ENTRY, "1Remote backup"),
+                    ("autorun.inf", "[autorun]"),
+                    ("locality/keep.json", "{}"));
+
+                BackupService.Restore(_archive);
+
+                Assert.IsFalse(File.Exists(Path.Combine(_root, "autorun.inf")));
+                Assert.IsTrue(File.Exists(Path.Combine(AppPathHelper.Instance.LocalityDirPath, "keep.json")),
+                    "the entry after the skipped one still has to be restored");
+            }
+            finally
+            {
+                CultureInfo.CurrentCulture = original;
+            }
+        }
     }
 }
