@@ -8,6 +8,55 @@ saying why the reason no longer holds.
 
 ---
 
+## 2026-08-28 — fix round: the upload-scan refusal case only refused on Linux
+
+Branch `cursor/fix-upload-scan-refusal-test-220f`, off `main` at `be003d3d`. No feature work: `main` was red.
+
+[Run 33147128602](https://github.com/chaogei666661/1Remote-plus/actions/runs/33147128602) failed the `Run tests 🧪`
+step on `windows-latest` with 381 passed and one failed —
+`LocalUploadScanTests.AFolderThatCannotBeNamedOnTheServerIsRefusedLoudly` expected `ArgumentException` and got
+`UnauthorizedAccessException`. The case was written on Linux and only holds there:
+
+| | Linux | Windows |
+| --- | --- | --- |
+| `new DirectoryInfo(Path.DirectorySeparatorChar.ToString()).FullName` | `/` | `C:\` — `\` resolves against the current drive |
+| `RemoteFolderName` of that | `""` → `ArgumentException`, as the case wants | `"C"` — nameable **by design**, from the round above |
+| what `Enumerate` then does | throws | walks `C:\`, and `GetDirectories()` throws `UnauthorizedAccessException` |
+
+So the case picked an input that Windows can name, and the production behaviour it tripped over is the
+drive-root fix the previous round deliberately added (`D:\` → remote `D/`). The test was wrong, not the code.
+
+### Taken
+
+**The refusal case now uses an input neither platform can name.** A colon past the drive qualifier —
+`…/1remote-upload-xxxx/stream:evil`. Unix allows a folder to be called that, Win32 reads it as an alternate
+data stream, and `DownloadPathGuard.IsSafeSegment` refuses it on both, which is exactly the rule the case is
+about. It survives `Path.GetFullPath` on both: Windows normalisation is `GetFullPathNameW` plus short-name
+expansion, and neither touches a colon in a non-root component (.NET Core 2.1 stopped validating path
+characters during normalisation). The path is never created — the name is decided before anything is listed —
+and the case now asserts that the input really is unnameable before asserting the throw, so a future
+normalisation change fails with a sentence instead of a puzzle. `APathWithNoNameableComponentIsRefusedRatherThanGuessed`
+gained the two path shapes as strings, which is pure string work and therefore gives the same answer here as
+on CI. `Ui/` is untouched.
+
+### Verified
+
+Level 2 of §7: the real `LocalUploadScanTests.cs` and `DownloadPathGuardTests.cs` compiled against the real
+`LocalUploadScan.cs` and `DownloadPathGuard.cs` in a throwaway `net9.0` project — **37 passed, 0 failed**.
+Mutating `RemoteFolderName` to return the unsafe name anyway turns the case red, so it is testing something.
+`dotnet build Tests/Tests.csproj -c Debug -p:EnableWindowsTargeting=true` — 0 errors. The Windows half is
+CI's to confirm; the naming decision it depends on is covered by the string assertions, which do run here.
+
+### Not taken
+
+**`Enumerate` still aborts the whole walk on one unreadable subfolder.** That is what the red CI actually
+demonstrated: `GetDirectories()` raised `UnauthorizedAccessException` on `C:\`, and in the app that lands in a
+`catch` that only logs — so uploading a drive root, or any folder containing one folder the user cannot read,
+still ends in silence. Fixing it means catching per-directory and reporting skipped folders the way
+`LinksNotFollowed` reports links. Out of scope for a fix round; worth a round of its own.
+
+---
+
 ## 2026-08-28 — a watch the parent can poll, and the upload half of the transfer scan
 
 Branch `cursor/release-watch-and-upload-scan-2862`, off `main` at `170f6386` (v1.3.0.22). Second round of the
