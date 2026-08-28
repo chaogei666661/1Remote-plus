@@ -491,6 +491,15 @@ formatting characters — bidirectional overrides, zero-width joiners, control c
 them, and previewing such a file asks first, quoting the real name and the extension that will actually
 decide what runs. Ordinary names, accents and CJK included, are shown unchanged.
 
+**Uploads stop at a folder link.** Uploading a folder used to walk into every subfolder the file system
+listed, junctions and symbolic links included. A link pointing back at a parent turned the scan into a walk
+that kept re-entering the same tree at a longer path each time until the platform gave out, and the upload
+then quietly did nothing; a link pointing anywhere else — `AppData`, a mapped drive, all of `C:\` — sent
+whatever was behind it to the remote server along with the folder you actually picked. A linked folder is now
+created empty on the far side and not descended into, and the transfer panel names the ones it stopped at.
+Linked *files* are still uploaded: reading through one is what copying that file means. Uploading a whole
+drive works too, and lands in a folder named after its letter; it used to fail silently.
+
 **Temporary files.** Generated `.rdp` files and private-key copies are staged in a per-session directory that
 is removed when the session ends, rather than in the shared temp folder.
 

@@ -281,6 +281,15 @@ namespace _1RM.Model.Protocol.FileTransmit.Transmitters.TransmissionController
         /// </summary>
         public List<TransmitItem> Items { get; } = new List<TransmitItem>();
 
+        private readonly List<string> _linksNotFollowed = new List<string>();
+
+        /// <summary>
+        /// Local directory links the upload scan listed but did not walk into. The folder is created on the
+        /// server and left empty, so the panel says which ones, rather than letting the user find out from
+        /// the far end.
+        /// </summary>
+        public IReadOnlyList<string> LinksNotFollowed => _linksNotFollowed;
+
         /// <summary>
         /// remember transmittedDataLength in timespan to calculate transmit speed.
         /// </summary>
@@ -401,6 +410,9 @@ namespace _1RM.Model.Protocol.FileTransmit.Transmitters.TransmissionController
 
         /// <summary>
         /// Scans a local directory and enqueues all child items for upload.
+        ///
+        /// The walk itself lives in <see cref="LocalUploadScan"/>: it is where the decision not to follow a
+        /// directory link is made, and it is the half of this that can be tested without a window.
         /// </summary>
         /// <param name="topDirectory">The root local directory to scan.</param>
         private void AddLocalDirectory(DirectoryInfo topDirectory)
@@ -415,34 +427,17 @@ namespace _1RM.Model.Protocol.FileTransmit.Transmitters.TransmissionController
                 if (!topDirectory.Exists)
                     return;
 
-                var srcParentDirPath = topDirectory.Parent!.FullName.TrimEnd('/', '\\');
+                var scan = LocalUploadScan.Enumerate(topDirectory);
 
-                var dis = new Queue<DirectoryInfo>();
-                var allItems = new Queue<TransmitItem>();
-                dis.Enqueue(topDirectory);
-                allItems.Enqueue(new TransmitItem(topDirectory, ServerPathCombine(_destinationDirectoryPath, topDirectory.Name)));
+                foreach (var link in scan.LinksNotFollowed)
+                    _linksNotFollowed.Add(link);
 
-                while (dis.Any())
+                foreach (var entry in scan.Entries)
                 {
-                    var di = dis.Dequeue();
-                    var subDis = di.GetDirectories();
-                    foreach (var subDi in subDis)
-                    {
-                        dis.Enqueue(subDi);
-                        var dst = ServerPathCombine(_destinationDirectoryPath, subDi.FullName.RemoveFirst(srcParentDirPath).Replace('\\', '/').Trim(new char[] { '/', '\\' }));
-                        allItems.Enqueue(new TransmitItem(subDi, dst));
-                    }
-                    var subFis = di.GetFiles();
-                    foreach (var fi in subFis)
-                    {
-                        var dst = ServerPathCombine(_destinationDirectoryPath, fi.FullName.RemoveFirst(srcParentDirPath).Replace('\\', '/').Trim(new char[] { '/', '\\' }));
-                        allItems.Enqueue(new TransmitItem(fi, dst));
-                    }
-                }
-
-                foreach (var item in allItems)
-                {
-                    AddTransmitItem(item);
+                    var dst = ServerPathCombine(_destinationDirectoryPath, entry.RelativePath);
+                    AddTransmitItem(entry.Info is DirectoryInfo di
+                        ? new TransmitItem(di, dst)
+                        : new TransmitItem((FileInfo)entry.Info, dst));
                 }
             }
             catch (Exception e)
