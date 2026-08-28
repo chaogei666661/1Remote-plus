@@ -129,7 +129,7 @@ namespace _1RM.Utils.FileTransmit
             string fullCandidate;
             try
             {
-                fullRoot = Path.GetFullPath(root).TrimEnd(Separators);
+                fullRoot = Path.GetFullPath(NormalizeRoot(root)).TrimEnd(Separators);
                 fullCandidate = Path.GetFullPath(candidate);
             }
             catch (Exception)
@@ -181,6 +181,17 @@ namespace _1RM.Utils.FileTransmit
         private static bool HasDriveQualifier(string value)
         {
             return value.Length >= 2 && value[1] == ':' && char.IsLetter(value[0]);
+        }
+
+        /// <summary>
+        /// The callers hold a destination with its trailing separator already stripped, which turns a
+        /// download into the root of a drive from <c>D:\</c> into <c>D:</c> — and that is drive-relative, so
+        /// <see cref="Path.GetFullPath(string)"/> would answer with that drive's working directory and every
+        /// file in the transfer would look like an escape.
+        /// </summary>
+        private static string NormalizeRoot(string root)
+        {
+            return root.Length == 2 && HasDriveQualifier(root) ? root + Path.DirectorySeparatorChar : root;
         }
 
         private static bool IsDotsOnly(string value)

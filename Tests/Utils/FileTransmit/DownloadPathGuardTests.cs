@@ -249,6 +249,24 @@ namespace Tests.Utils.FileTransmit
                 "the guard produced a path the file system does not agree with");
         }
 
+        /// <summary>
+        /// TransmitTask strips the trailing separator off the destination, so choosing the root of a drive
+        /// leaves "D:" — which is drive-relative, and would make Path.GetFullPath answer with that drive's
+        /// working directory rather than its root, turning every file in the transfer into an escape.
+        ///
+        /// This case only bites on Windows. On Linux "D:" is an ordinary relative name and resolves the same
+        /// way with or without the fix, so running this on a Linux box proves the shape and nothing more; CI
+        /// is where it means something.
+        /// </summary>
+        [TestMethod]
+        public void ADestinationThatIsTheRootOfADriveStillAcceptsItsOwnChildren()
+        {
+            var resolved = DownloadPathGuard.Resolve("D:", "report.pdf");
+
+            Assert.AreEqual("D:" + Path.DirectorySeparatorChar + "report.pdf", resolved);
+            Assert.IsTrue(DownloadPathGuard.IsContained("D:", resolved));
+        }
+
         [TestMethod]
         public void AMissingDestinationIsAProgrammingErrorNotAnAttack()
         {

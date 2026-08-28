@@ -84,7 +84,7 @@ on `Ui.csproj` once SSH.NET moves. `FluentFTP 51.0.0`, `Npgsql 9.0.2`, `Newtonso
 | `e9dbd2aa` | `security(sftp): show a remote file name as it really is, not as it renders` |
 
 New tests: `Tests/Utils/Proxy/SshAlgorithmPolicyTests.cs` (9, new file),
-`Tests/Utils/FileTransmit/DownloadPathGuardTests.cs` (21, new file),
+`Tests/Utils/FileTransmit/DownloadPathGuardTests.cs` (22, new file),
 `Tests/Utils/FileTransmit/RemoteNameInspectorTests.cs` (9, new file).
 
 ### Verification
@@ -93,13 +93,20 @@ New tests: `Tests/Utils/Proxy/SshAlgorithmPolicyTests.cs` (9, new file),
 **0 errors**, and no `NU19xx` from the restore any more. The suite cannot be *run* here; CI on
 `windows-latest` is the first place it executes.
 
-All 39 new tests were nonetheless **executed here**, against the real source files, by the §7.2 harness: a
+All 40 new tests were nonetheless **executed here**, against the real source files, by the §7.2 harness: a
 throwaway `net9.0` MSTest project that compiles the three test files and `DownloadPathGuard.cs`,
 `RemoteNameInspector.cs`, `SshConnectionFactory.cs`, `ProxyConfig.cs`, `EProxyType.cs`,
 `UnSafeStringEncipher.cs` and `NotifyPropertyChangedBase.cs` by absolute path, with a `TestInit` that only
-seeds the string cipher. **39 passed, 0 failed.** Nothing had to be excluded.
+seeds the string cipher. **40 passed, 0 failed.** Nothing had to be excluded.
 
-Two things that check the checks:
+One of the 40 is weaker than it looks and is labelled as such in its own doc comment:
+`ADestinationThatIsTheRootOfADriveStillAcceptsItsOwnChildren` covers a Windows-only quirk — `D:` is
+drive-relative, so `Path.GetFullPath` answers with that drive's working directory instead of its root and
+`IsContained` would reject every file of a transfer downloaded to a drive root. Removing the fix and
+re-running still passes on Linux, because `D:` is an ordinary relative name there. CI is where that case
+means anything.
+
+Two things that do check the checks:
 
 - The algorithm tests were re-run with the package reference pinned back to 2023.0.0: **7 of the 9 fail.**
   They are a real guard, not a restatement of whatever the library happens to do.
