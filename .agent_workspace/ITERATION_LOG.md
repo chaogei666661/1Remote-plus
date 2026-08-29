@@ -8,6 +8,46 @@ saying why the reason no longer holds.
 
 ---
 
+## 2026-08-29 — environment bring-up, then three sub-rounds of windowless fixes and test cover
+
+Two things happened this round. First, the fork gained a committed Cloud Agent environment
+(`.cursor/environment.json` + `.cursor/install.sh`): .NET 9 SDK, submodules, and a warm
+`dotnet build Tests/Tests.csproj -c Debug -p:EnableWindowsTargeting=true`, validated by a draft
+environment build from a clean checkout. Branch `cursor/agent-env-and-orchestrator-167c`, PR #19.
+
+Second, three small sub-rounds, each verified with the §7.2 throwaway `net9.0` harness (**34 tests, all
+passing** on this Linux box) and the full-solution build (0 errors). The full MSTest suite still only runs
+on `windows-latest` in CI, which is the merge gate.
+
+Cloud subagent fan-out was **not** used: launching any `environment: cloud` subagent returns "You've used
+all included Cloud Agent usage". The rounds were run one editing agent at a time, which is what §4 asks for
+anyway.
+
+### Taken
+
+| # | Change | Why this one |
+| --- | --- | --- |
+| 1 | `Ui/Utils/HostNaturalSort.cs` (new) + `SubTitleSortByNaturalIp` reduced to a thin `IComparer` | The address-column sort compared IPv4 octets and ports as text (`192.168.0.10` before `.2`, `:10` before `:9`), rejected every compressed IPv6 address, split IPv6 literals on their first colon, and ignored the ascending/descending flag for anything that parsed as an IP. Now: IPv4 by bytes, then IPv6 by bytes, then hostnames in natural order; numeric ports; bracketed/bare IPv6. 9 tests |
+| 2 | `Tests/…/ProcessArgumentEscaperTests.cs` (new) | The guard that stops a shared-DB value (`root -proxycmd calc.exe`) from becoming extra command-line switches had no tests. Pinned the exact CommandLineToArgvW escaping. 7 tests. No code change — it was already correct |
+| 3 | `Ui/Utils/mRemoteNG/MRemoteNgCsv.cs` (new, extracted) + bounds fix; `MRemoteNgImporter` reduced to CSV→model mapping | mRemoteNG drops trailing empty columns, so a data row is routinely shorter than the header. `GetValue` indexed the row by the header's column position with no bounds check, so the first short row threw `IndexOutOfRange` and aborted the whole import. 6 tests |
+| 4 | `Tests/…/ProxyHandshakeTests.cs` (new); `ProxyHandshake` widened to public | `ProxyHandshake` builds the SOCKS5/4/4a/HTTP-CONNECT handshake bytes for every proxied session and its own summary says it is meant to be MemoryStream-tested — but had none. A scripted-stream fixture now pins the exact bytes and reply handling. 12 tests. No behaviour change |
+
+### Rejected, and why
+
+| Idea | Why not |
+| --- | --- |
+| **Quote-aware mRemoteNG CSV splitting** | The crash fix is unambiguous and cannot regress good input; changing the delimiter handling to honour `"`-quoting could mis-parse an export that does not quote, and stability outranks the extra fidelity. Left for a round that can confirm mRemoteNG's exact quoting on Windows |
+| **Fix `SshConfigParser.StripUserAndPort` for bracketed/bare IPv6 `ProxyJump` hops** | Real (it can cut an IPv6 literal at a colon), but niche, and the SSH parser is dense and heavily relied on. Deferred rather than risk a regression in the same round as three other changes. Noted here so the next round can take it deliberately |
+| **Natural-sort the hostname fallback of the old comparer only** | Superseded — item 1 does exactly this as part of the rewrite |
+
+### Verify
+
+- `dotnet build Tests/Tests.csproj -c Debug -p:EnableWindowsTargeting=true` — 0 errors.
+- §7.2 harness over the four new test files + the files under test — 34 passed, 0 failed.
+- `Ui/AppVersion.cs` untouched. No hardening reverted. No new user-visible strings.
+
+---
+
 ## 2026-08-28 — fix round: the Thai locale that made every log call throw
 
 A fix round on the same branch, `cursor/rdp-dpapi-secret-audit-e31b`, not a feature round. No new

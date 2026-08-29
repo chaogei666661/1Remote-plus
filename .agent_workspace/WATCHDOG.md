@@ -6,11 +6,12 @@ unbounded series of fixed-interval cycles.
 
 ```yaml
 last_cycle: 1
-last_round: 1            # reconnaissance + environment bring-up
-last_success: 2026-08-29T05:00Z
+last_round: 2            # three windowless fix/test sub-rounds on top of the environment
+last_success: 2026-08-29T05:34Z
 current_branch: cursor/agent-env-and-orchestrator-167c
-current_task: "Cloud Agent environment (.NET 9 SDK + submodules + build/test path) and orchestrator baseline"
-status: environment-ready
+current_task: "server-list sort fix, mRemoteNG import crash fix, and test cover for the argument escaper and proxy handshake"
+status: changes-pushed-awaiting-windows-ci
+tests_windowless: "34 passed via the §7.2 harness; full suite runs on windows-latest"
 blocker: "cloud subagent quota exhausted — enable on-demand cloud usage before the multi-agent loop can fan out"
 ```
 

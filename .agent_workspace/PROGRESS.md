@@ -61,7 +61,18 @@ Watchdog here is a *state record* the next round reads, not a live daemon.
 - **Recent security/stability work (do not undo — see ISSUE_FIXES.md):** RDP .rdp password scoping,
   secret-access audit, session-script/`cmd://` trust-on-first-use, WebDAV HTTPS, Thai-locale logger guard.
 
+## Work landed on this branch (Cycle 1)
+
+- Committed Cloud Agent environment (`.cursor/`), validated by a draft build.
+- Round 2 sub-rounds (34 windowless tests passing, full build clean):
+  1. `HostNaturalSort` — server-list address sort fixed (IPv6, numeric ports, sort direction).
+  2. `ProcessArgumentEscaper` — regression tests for the command-injection guard.
+  3. `MRemoteNgCsv` — mRemoteNG import no longer crashes on a short row; parsing extracted + tested.
+  4. `ProxyHandshake` — SOCKS5/4/4a/HTTP-CONNECT byte streams pinned by tests.
+
 ## Open threads for the next round
 
+- `SshConfigParser.StripUserAndPort` mishandles bracketed/bare IPv6 `ProxyJump` hops (deferred, see log).
+- Quote-aware mRemoteNG CSV splitting (needs Windows confirmation of mRemoteNG's quoting).
 - Candidate work lives in the "Not taken" sections of `ITERATION_LOG.md` and §5 of `AUTO_ITERATION.md`.
 - Nothing is in flight on an `agent/*` or `cursor/*` branch that blocks a new round except this one.
