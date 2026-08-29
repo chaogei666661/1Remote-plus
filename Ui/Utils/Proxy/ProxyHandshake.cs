@@ -16,7 +16,7 @@ namespace _1RM.Utils.Proxy
     /// Every method is synchronous by design: the caller sets a read timeout on the stream, which only
     /// applies to synchronous reads on NetworkStream.
     /// </summary>
-    internal static class ProxyHandshake
+    public static class ProxyHandshake
     {
         private const int MAX_HTTP_HEADER_BYTES = 8 * 1024;
 
