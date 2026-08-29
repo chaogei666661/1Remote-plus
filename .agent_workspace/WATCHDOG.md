@@ -11,6 +11,7 @@ last_success: 2026-08-29T05:00Z
 current_branch: cursor/agent-env-and-orchestrator-167c
 current_task: "Cloud Agent environment (.NET 9 SDK + submodules + build/test path) and orchestrator baseline"
 status: environment-ready
+blocker: "cloud subagent quota exhausted — enable on-demand cloud usage before the multi-agent loop can fan out"
 ```
 
 ## Health checks the next round should run first
