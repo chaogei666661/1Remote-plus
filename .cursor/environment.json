@@ -1,0 +1,4 @@
+{
+  "name": "1Remote-plus (WPF/.NET 9 — Linux build & windowless tests)",
+  "install": "bash .cursor/install.sh"
+}
