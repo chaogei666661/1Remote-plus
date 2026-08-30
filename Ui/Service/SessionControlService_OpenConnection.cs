@@ -11,6 +11,7 @@ using _1RM.Model.ProtocolRunner;
 using _1RM.Model.ProtocolRunner.Default;
 using _1RM.Service.Locality;
 using _1RM.Utils;
+using _1RM.Utils.RdpFile;
 using _1RM.Utils.Tracing;
 using _1RM.View;
 using _1RM.View.Editor;
@@ -31,11 +32,7 @@ namespace _1RM.Service
             // unguessable name rather than under %TEMP% as "<server>_<port>_<hash>.rdp", and it is removed
             // when mstsc exits rather than only by a timer that a crash can outlive.
             var dir = SessionTempFile.CreateDirectory("rdp");
-            var rdpFileName = $"{rdp.DisplayName}_{rdp.Port}_{MD5Helper.GetMd5Hash16BitString(rdp.UserName)}";
-            var invalid = new string(Path.GetInvalidFileNameChars()) +
-                          new string(Path.GetInvalidPathChars());
-            rdpFileName = invalid.Aggregate(rdpFileName, (current, c) => current.Replace(c.ToString(), ""));
-            var rdpFile = Path.Combine(dir, rdpFileName + ".rdp");
+            var rdpFile = Path.Combine(dir, RdpFileName.ForSession(rdp.DisplayName, rdp.Port, MD5Helper.GetMd5Hash16BitString(rdp.UserName)));
             var text = rdp.ToRdpConfig().ToString();
 
             // write a .rdp file for mstsc.exe
@@ -80,12 +77,7 @@ namespace _1RM.Service
         {
             // see ConnectRdpByMstsc: one directory per invocation, not a name derived from the server
             var dir = SessionTempFile.CreateDirectory("remoteapp");
-            var rdpFileName = $"{remoteApp.DisplayName}_{remoteApp.Port}_{remoteApp.UserName}";
-            var invalid = new string(Path.GetInvalidFileNameChars()) + new string(Path.GetInvalidPathChars());
-            rdpFileName = invalid.Aggregate(rdpFileName, (current, c) => current.Replace(c.ToString(), ""));
-            var rdpFile = Path.Combine(dir, rdpFileName + ".rdp");
-
-            // write a .rdp file for mstsc.exet.Replace(c.ToString(), ""));
+            var rdpFile = Path.Combine(dir, RdpFileName.ForSession(remoteApp.DisplayName, remoteApp.Port, remoteApp.UserName));
             var text = remoteApp.ToRdpConfig().ToString();
             // write a .rdp file for mstsc.exe
             if (RetryHelper.Try(() =>

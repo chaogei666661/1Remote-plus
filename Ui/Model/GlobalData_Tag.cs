@@ -1,5 +1,6 @@
 ﻿using System;
 using _1RM.Service.Locality;
+using _1RM.Utils;
 using Shawn.Utils;
 using System.Collections.Generic;
 using System.Linq;
@@ -31,7 +32,7 @@ namespace _1RM.Model
             {
                 foreach (var tagName in tagNames)
                 {
-                    var tn = tagName.Trim().ToLower();
+                    var tn = TagName.Fold(tagName);
                     if (tags.TryGetValue(tn, out var existed))
                     {
                         existed.ItemsCount++;

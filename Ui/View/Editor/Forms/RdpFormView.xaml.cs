@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -12,6 +11,7 @@ using ICSharpCode.AvalonEdit.CodeCompletion;
 using ICSharpCode.AvalonEdit.Document;
 using ICSharpCode.AvalonEdit.Editing;
 using _1RM.Model.Protocol;
+using _1RM.Utils.RdpFile;
 using Shawn.Utils;
 
 namespace _1RM.View.Editor.Forms
@@ -167,30 +167,8 @@ namespace _1RM.View.Editor.Forms
         {
             if (DataContext is not RdpFormViewModel viewModel) return;
             var rdp = viewModel.New;
-            var tmp = Path.GetTempPath();
-            var rdpFileName = $"{rdp.DisplayName}_{rdp.Port}_{MD5Helper.GetMd5Hash16BitString(rdp.UserName)}";
-            var invalid = new string(Path.GetInvalidFileNameChars()) +
-                          new string(Path.GetInvalidPathChars());
-            rdpFileName = invalid.Aggregate(rdpFileName, (current, c) => current.Replace(c.ToString(), ""));
-            var rdpFile = Path.Combine(tmp, rdpFileName + ".rdp");
-
-            // write a .rdp file for mstsc.exe
-            File.WriteAllText(rdpFile, rdp.ToRdpConfig().ToString());
-            var p = new Process
-            {
-                StartInfo =
-                {
-                    FileName = "cmd.exe",
-                    UseShellExecute = false,
-                    RedirectStandardInput = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true
-                }
-            };
-            p.Start();
-            p.StandardInput.WriteLine($"notepad " + rdpFile);
-            p.StandardInput.WriteLine("exit");
+            RdpFilePreview.Show(rdp.ToRdpConfig().ToString(),
+                RdpFileName.ForSession(rdp.DisplayName, rdp.Port, MD5Helper.GetMd5Hash16BitString(rdp.UserName)));
         }
     }
 

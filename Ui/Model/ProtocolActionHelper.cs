@@ -9,6 +9,7 @@ using _1RM.Model.ProtocolRunner.Default;
 using _1RM.Service;
 using _1RM.Service.Audit;
 using _1RM.Utils;
+using _1RM.Utils.RdpFile;
 using _1RM.View;
 using Shawn.Utils.Interface;
 using Shawn.Utils.Wpf.FileSystem;
@@ -201,7 +202,9 @@ public static class ProtocolActionHelper
         {
             actions.Add(new ProtocolAction(IoC.Translate("Export") + " *.rdp", () =>
             {
-                var path = SelectFileHelper.SaveFile(filter: "rdp|*.rdp", selectedFileName: rdp.DisplayName + ".rdp");
+                // RdpFileName, not DisplayName + ".rdp": the dialog is handed a file name, and a server
+                // called "web01 / dmz" made one with a directory separator in it that it could not use.
+                var path = SelectFileHelper.SaveFile(filter: "rdp|*.rdp", selectedFileName: RdpFileName.Make(rdp.DisplayName));
                 if (string.IsNullOrEmpty(path)) return;
                 // mstsc opens the exported file on its own, with no tunnel of ours behind it, so it has to
                 // name the real host even when this runs on a session that is going through a proxy

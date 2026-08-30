@@ -273,6 +273,16 @@ Keyword-Matchers`. They apply to this box as well as to the launcher.
 everything under it at once, or **Delete**. On a tag chip on a row, plain click sets it as the filter,
 **Ctrl + click** adds it to the include list, **Alt + click** adds it to the exclude list.
 
+Tag names are stored and matched in lower case, and the lower-casing no longer asks the Windows user
+locale. It used to: Turkish and Azerbaijani map `I` to the dotless `ı`, so a tag typed as `LINUX` was stored
+as `lınux` on those desktops and as `linux` on every other one. Opening a server re-folds its tags and writes
+them back, so a list shared through MySQL, PostgreSQL or a network share ended up holding both spellings —
+two tags that look identical in the tag bar, each with some of the servers, neither found by the other
+locale's filter. The same locale made `#WINDOWS` in the filter bar match nothing on a Turkish desktop. Names
+are also composed to Unicode form C before they are compared, so a tag written on macOS with a decomposed
+`é` is the same tag as the precomposed one; a tag with an invisible character in it, which used to be folded
+silently into its visible twin, is now a tag of its own and shows up as one.
+
 **Sorting.** The main menu's **Sorting** submenu orders the list by Id (your own drag order), protocol, name,
 address, or **Recently connected**. Protocol, name and address toggle between ascending and descending.
 
@@ -426,7 +436,7 @@ Right-click a row (or press **→** in the launcher):
 | Wake on LAN | Shown when the entry has a MAC address |
 | Create desktop shortcut | A `.lnk` that opens this session directly |
 | Open SFTP | On SSH entries, opens a file browser to the same host |
-| Export \*.rdp | On RDP entries |
+| Export \*.rdp | On RDP entries. The name offered in the save dialog is the display name with anything a Win32 file name cannot hold taken out of it |
 
 ## Protocols
 
@@ -602,8 +612,17 @@ exception that went to the log and nowhere else: the transfer reported success a
 Uploading a drive root hit this every time. The scan now skips the folder it could not list, uploads
 everything else, creates the skipped folder empty on the server, and names it in the transfer panel.
 
-**Temporary files.** Generated `.rdp` files and private-key copies are staged in a per-session directory that
-is removed when the session ends, rather than in the shared temp folder.
+**Previewing a `.rdp` no longer goes through a command shell.** The **Preview \*.rdp** button of the RDP and
+RemoteApp editors writes the file mstsc would be given and opens it in Notepad. It used to do that by piping
+`notepad <path>` into a `cmd.exe`, unquoted — and the path contains the server's display name, which cmd reads
+`&` out of as a command separator. A server called `x&calc&y` therefore ran `calc` with your account when its
+editor page was previewed, and a name with an ordinary space in it did not open at all. Notepad is now started
+directly with the path as an argument, so nothing in the name is interpreted. The preview file also carries
+the session password as a DPAPI blob, and it used to be left in `%TEMP%` for good under a predictable name; it
+now goes into the same per-session directory the connect path uses and is removed a minute later.
+
+**Temporary files.** Generated `.rdp` files, `.rdp` previews and private-key copies are staged in a
+per-session directory that is removed when the session ends, rather than in the shared temp folder.
 
 **SSH transport algorithms.** SFTP sessions, SSH jump hosts and standing port forwards all negotiate through
 the bundled SSH.NET library. It offers AES-GCM and ChaCha20-Poly1305, encrypt-then-MAC integrity — which is

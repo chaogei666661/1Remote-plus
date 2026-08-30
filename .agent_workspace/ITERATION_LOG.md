@@ -8,6 +8,216 @@ saying why the reason no longer holds.
 
 ---
 
+## 2026-08-28 — the preview button that ran the server's name, and the tag a Turkish desktop renamed
+
+Branch `cursor/rdp-file-name-and-preview-shell-16df`, off `main` at `fe903b00` (v1.3.0.27). Opened on the
+release, as §0 says: [run 33179298455](https://github.com/chaogei666661/1Remote-plus/actions/runs/33179298455)
+succeeded and v1.3.0.27 published. Took items 2, 3 and 4 of the last round's list, found that item 4's
+premise was half wrong, and went looking for one new finding rather than filling the round out of the backlog.
+
+### What the research turned up
+
+**Nothing to port and nothing to patch, for the eighth round running.** `1Remote/1Remote`'s newest release is
+still `1.3-prerelease` (2026-04-29), stable still 1.2.1; it is **0** commits ahead of `origin/main` and this
+fork is 214 ahead of it. `chaogei/1Remote-Plus` is 7 commits ahead and all seven are the release plumbing this
+fork already has plus the four bare `Model:` commits. `dotnet restore Ui/Ui.csproj` emits no `NU19xx` across
+the 21 direct package references. `pwsh` is not on this VM, so §2's briefing was run as its constituent
+commands.
+
+**Item 3 was real and worse than it was written down as.** Both RDP editor forms have a **Preview \*.rdp**
+button, and both wrote the file into `%TEMP%` under `<DisplayName>_<port>_<md5(user)>.rdp` and never removed
+it. That much was the carried-over item: the file carries the session password as a DPAPI blob, and the
+connect path stopped leaving one lying around when it got `SessionTempFile`. Reading the method turned up the
+part nobody had written down — how the file is opened:
+
+```csharp
+p.StandardInput.WriteLine($"notepad " + rdpFile);   // into a cmd.exe, unquoted
+```
+
+`Path.GetInvalidFileNameChars()` does not contain `&`. So a server called `x&calc&y` produces
+`notepad C:\…\x`, then `calc`, then `y_3389_….rdp` — **`calc` runs, with the user's account, when its editor
+page is previewed.** A display name is an ordinary column of the server list, which is the same delivery
+surface the `cmd://` gate and the session-script gate were built for: a shared MySQL or PostgreSQL source, a
+SQLite file on a share, a synced profile folder, a restored `.1rbak`. The same missing quoting meant a server
+whose name merely contains a space never previewed at all.
+
+**Item 2 was real as described.** `ProtocolActionHelper`'s export offered `rdp.DisplayName + ".rdp"` with
+nothing taken out; `web01 / dmz` gives the save dialog a path into a folder that does not exist.
+
+**Item 4's premise was half wrong, and the half that was right was in the line next door.** `CmdGoToParent`
+does compute `""` as the parent of `/foo` — and it never showed, because `ShowFolder` turns an empty path into
+`/` on the way in. What does show is the neighbouring `/..` resolution, guarded with `if (i > 0)`: for a
+top-level folder the only separator is at index 0, so typing `/foo/..` into the path box goes to `/foo`.
+
+**The new finding is that a tag is not the same tag on every desktop.** Every fold of a tag name went through
+`string.ToLower()`, and every comparison through `StringComparison.CurrentCultureIgnoreCase`. Both ask
+`CultureInfo.CurrentCulture`, which is the Windows user locale. Measured here:
+
+| | `en-US` | `th-TH` | **`tr-TR` / `az-Latn-AZ`** |
+| --- | --- | --- | --- |
+| `"LINUX".ToLower()` | `linux` | `linux` | **`lınux`** |
+| `Equals("windows","WINDOWS", CurrentCultureIgnoreCase)` | true | true | **false** |
+
+The second row is why typing `#WINDOWS` into the filter bar finds nothing on a Turkish desktop. The first row
+travels, which is the part that makes this more than a curiosity: `ProtocolBaseViewModel.Server` folds a
+server's tag list **and assigns it back**, so merely displaying a server rewrites its tags. On a data source
+several people share, the list ends up holding both spellings — two tags that are indistinguishable in the tag
+bar, each with some of the servers, neither found by the other locale's filter. `LocalityTagService` keys the
+pinned state and the header-bar order on the same fold, so changing the Windows display language loses both
+on one machine. Thirteen `.ToLower()` call sites and five `CurrentCultureIgnoreCase` comparisons, across
+`Tag`, `GlobalData_Tag`, `TagActionHelper`, `TagsEditor`, `LocalityTagService`, `TagAndKeywordEncodeHelper`,
+`ProtocolBaseViewModel` and `AppStartupHelper`.
+
+**Item 1 — the upstream `Shawn.Utils` PR — could not be done from here** and is written up below instead.
+
+### Taken
+
+| # | Change | Why this one |
+| --- | --- | --- |
+| 1 | `RdpFileName` + `RdpFilePreview`; both preview buttons | Arbitrary command execution from a field somebody else can write, plus the password blob the connect path stopped leaving in `%TEMP%` |
+| 2 | Export `*.rdp` and both connect paths through `RdpFileName` | Item 2, and one answer to "what is this file called" instead of three copies and one place with none |
+| 3 | `TagName`; every tag fold and comparison in the app | A shared server list that quietly grows a second copy of every tag with an `i` in it |
+| 4 | `RemotePath`; `ShowFolder` and `CmdGoToParent` | Item 4, with an honest note that half of it was already masked |
+
+### Rejected, and why
+
+| Idea | Why not this round |
+| --- | --- |
+| **Move to .NET 10** | Out of scope by instruction for the eighth round. Support for .NET 9 ends **2026-11-10**, now about ten weeks out. Still wants a round with nothing else in it |
+| **Patch `SimpleLogHelper.cs` in the submodule** | Unchanged from the last round's answer: it is `VShawn/Shawn.Utils` at pin `7479754`, a local edit is invisible to CI and lost on the next update. Reproduced and written up below for a PR somebody with write access can open |
+| **Take `ConnectRemoteApp` off `cmd.exe` too** | It launches mstsc through cmd with the path **quoted**, so `&` is inert there, and `AddUnHostingWatch` watches that cmd process. Rewriting a connect path cannot be tested from Linux and is exactly the blast radius §5 says to avoid. One thing does survive the quoting — `%VAR%` in a display name is still expanded by cmd — and it is written down below rather than fixed |
+| **Strip shell metacharacters out of the file name as well** | Belt and braces, and it renames an `R&D box` behind the user's back for no gain once the shell is gone. There is a test asserting `&` is kept |
+| **Tie the preview file's deletion to `Process.Exited`** | `notepad.exe` on Windows 11 may hand the path to an already-running editor and return at once, which would delete the file before it was read. A 60-second backstop covers the launch, and notepad does not hold the file open after it has read it. This is also why the earlier round's rejection of a session temp directory for the *SFTP download* preview does not apply: that file is a document the user may edit and save, this one is a generated artefact that is read once |
+| **Refuse `*` `?` `"` `<` `>` `\|` in an exported name instead of removing them** | Same answer the download-path round gave: an error message for a character the user cannot see the significance of, on a path where removing it produces exactly the file they asked for |
+| **Normalise tag names to form KC** | Form C is the one that makes a decomposed `é` — which is what macOS writes — the same tag as its precomposed twin, which is what the old linguistic comparison did and what the ordinal one would otherwise stop doing. KC would additionally fold `ﬁ` into `fi` and `①` into `1`, which is a different decision about what a tag *is* and one nobody asked for |
+| **Keep the linguistic comparison and only fix the fold** | Then `prod` and `pro<U+200B>d` stay one tag, silently — the same class of silent merge the transfer round found in `TransmitItemKeySet`. Two tags that look identical should both be *visible*, not merged behind the user's back |
+| **Migrate existing `lınux` tags on a Turkish desktop to `linux`** | A data migration over a data source this app may only have read access to, to repair a spelling only two locales ever produced. The fold stops it growing; the two tags that already exist are a rename away, and the tag context menu already has **Rename** |
+| **`RdpConfig.FromRdpFile`'s `CurrentCultureIgnoreCase` key match** | Looked at because it is the same shape, and **measured rather than assumed**: `Equals("full address:s:", "FULL ADDRESS:S:", CurrentCultureIgnoreCase)` is `true` under `en-US`, `tr-TR` and `th-TH` alike, and mstsc writes the keys lower-case anyway. `OrdinalIgnoreCase` would be more correct and there is no symptom to claim, so it was left alone rather than dressed up as a fix |
+| **`AppArgumentHelper.GetPresetArgumentList`'s `exePath.ToLower()`** | Real and the same class — on `tr-TR`, `KITTY.EXE` folds to `kıtty.exe` and no preset argument list is offered for KiTTY, FileZilla or WinSCP. Category 4, no data leaves and nothing breaks that the user cannot fix by typing the arguments, and this round already had a locale change in it. Written down below |
+| **`ServerSelectionsViewModel`'s `DisplayName.ToLower() == kw.ToLower()`** | Same class again, and it is an exact full-name equality in the launcher rather than anything stored. Not worth widening a tag change into the launcher |
+| **Sanitise the newline out of `RdpConfig`'s `full address`, `username`, `domain` and `gatewayhostname`** | A newline in one of those does inject extra directives into the generated `.rdp`, including `gatewayhostname`. Considered and left: every one of those values is already the connection's own address or credential, so whoever can set them is already the party the session talks to. Worth a look in a round that is about the `.rdp` writer rather than about its file name |
+| **Prompt before `.rdp` import copies the Windows Credential Manager entry for the host** | `CmdImportFromRdp` calls `Credential.Load("TERMSRV/" + rdp.Address)` and silently puts the saved user name and password into the imported server, which may land in a shared data source or a later cleartext JSON export. Genuinely a finding; deferred because it needs a dialog, two language keys and a decision about the default, and this round already had a security change and a locale change in it. **Best candidate for the next round** |
+| **Fix `Rectify`'s `"  Web Servers  "` → `--web-servers--`** | Leading and trailing spaces become dashes before anything trims, in the expression this round moved rather than in anything it wrote. Asserted as-is in a test so that tidying it later is a deliberate change |
+| **Remove `~VmFileTransmitHost()`** | Carried over unchanged for the fifth round: it cancels a token nobody registered on, so it cannot throw |
+| **Session tab mute / read-only / lock; RDP per-monitor selection; the legacy-SSH toggle** | Carried over for the eighth round. All three still need a human at a Windows keyboard |
+
+### What landed
+
+| Commit | |
+| --- | --- |
+| `2b90aa51` | `security(rdp): previewing a server's .rdp ran whatever its name said to run` |
+| `13d2d017` | `fix(rdp): a server named "web01 / dmz" could not be exported at all` |
+| `753eb4c5` | `fix(tags): a tag typed on a Turkish desktop was a different tag from the same word typed anywhere else` |
+| `6223421f` | `fix(sftp): typing /foo/.. in the path box went to /foo` |
+| `ce8fa1c4` | `fix(tags): four more tag comparisons that asked the desktop's locale` |
+
+New files: `Ui/Utils/RdpFile/RdpFileName.cs`, `Ui/Utils/RdpFile/RdpFilePreview.cs`, `Ui/Utils/TagName.cs`,
+`Ui/Utils/FileTransmit/RemotePath.cs`. New tests: `Tests/Utils/RdpFile/RdpFileNameTests.cs` (11),
+`Tests/Utils/TagNameTests.cs` (8), `Tests/Utils/FileTransmit/RemotePathTests.cs` (9) — 28 in all.
+
+No new language keys and no new setting: nothing this round adds says anything to the user that was not
+already being said. `README.md` and `README.zh-CN.md` updated for the preview, the export file name and the
+tag fold. `Ui/AppVersion.cs` untouched (`Build = 27`).
+
+### Verification
+
+`dotnet build Tests/Tests.csproj -c Debug -p:EnableWindowsTargeting=true` with SDK 9.0.317 — **0 errors, 120
+warnings**, which is the count `main` builds with. The suite cannot be *run* here; CI on `windows-latest` is
+the first place it executes.
+
+Level 2 of §7 for all four changes: a throwaway `net9.0` MSTest project outside the repository compiling
+`RdpFileName.cs`, `TagName.cs` and `RemotePath.cs` together with the three real test files by absolute path,
+with a no-op `TestInit`. **28 passed, 0 failed. Nothing excluded.** The project is not in the repository and
+was deleted afterwards.
+
+Each change was checked against the bug it claims to catch, by compiling the *previous* behaviour beside the
+new one and running the same assertions against both:
+
+- The four call sites' old name handling (`Path.GetInvalidFileNameChars()` and nothing else) fails **8 of the
+  11** name cases. Two of those eight — the illegal-character ones — would pass on Windows, where that call
+  answers with the full set; the other six are the device names, the empty stem, the trailing dot and the
+  length cap, and they fail on either platform.
+- `Trim().ToLower()` plus `CurrentCultureIgnoreCase` fails **4 of the 8** tag cases, including
+  `ATagIsSpelledTheSameWayOnATurkishDesktopAsOnAnyOther` and
+  `AnUpperCaseFilterStillFindsItsTagOnATurkishDesktop`.
+- The old inline `if (i > 0)` resolution fails **5 of the 9** path cases.
+
+The locale cases set `CultureInfo.CurrentCulture` explicitly rather than trusting the box, so they mean the
+same thing here, on CI and on a developer's machine. The illegal-character assertions deliberately do **not**
+go through `Path.GetInvalidFileNameChars()`: on Linux that is `/` and NUL alone, and a test built on it would
+have passed without checking anything.
+
+Not executed anywhere, and needing a Windows reviewer:
+
+- **The preview button itself**, in both the RDP and the RemoteApp editor. Open a server whose display name
+  contains a space, click **Preview \*.rdp**, confirm Notepad opens the file rather than an empty
+  *Create new file?* prompt. Then name a server `x&calc&y` and preview it: before this change `calc` opened,
+  after it nothing but Notepad should. Confirm the `1Remote_rdp-preview_*` folder under `%TEMP%` is gone about
+  a minute later.
+- **Export \*.rdp** on a server called `web01 / dmz`: the save dialog should now pre-fill `web01  dmz.rdp`
+  and accept it.
+- **A server called `CON`**, connected through the mstsc runner — the temp `.rdp` is now `_CON.rdp`, and
+  before this change the write went to the console device and mstsc got nothing.
+- **The tag bar**, on an ordinary English desktop: pin a tag, restart, confirm it is still pinned. That is the
+  `.locality` key path, and the fold that produces the key changed for every locale even though the *value*
+  only changes under `tr-TR`/`az`. A tag whose name is pure ASCII keys identically before and after, so this
+  is a regression check rather than a fix check.
+- **The file browser's path box**: type `/foo/..` and confirm it lands on `/`.
+
+### The upstream `Shawn.Utils` bugs, reproduced
+
+Item 1 of the last round's list. **This environment's `gh` is read-only and this agent has no write access to
+`VShawn/Shawn.Utils`, so no PR was opened.** Everything needed to open one:
+
+Repository `VShawn/Shawn.Utils`, file `Shawn.Utils/SimpleLogHelper.cs`, as pinned here at `7479754`:
+
+```diff
+@@ line 315, CleanUpLogFiles
+-                dateStr = dateStr.Substring(dateStr.LastIndexOf("_") + 1);
++                dateStr = dateStr.Substring(dateStr.LastIndexOf("_", StringComparison.Ordinal) + 1);
+@@ line 399, MakeLog
+-                    fileName = fileName.Substring(fileName.LastIndexOf("\\") + 1);
++                    fileName = fileName.Substring(fileName.LastIndexOf("\\", StringComparison.Ordinal) + 1);
+```
+
+Measured on this box under `th-TH`, whose ICU tailoring treats both separators as ignorable:
+
+| | value | `LastIndexOf` | ordinal | length |
+| --- | --- | --- | --- | --- |
+| `MakeLog` | `D:\a\…\BackupService.cs` | **65** | 48 | 65 |
+| `CleanUpLogFiles` | `1Remote_20260828` | **16** | 7 | 16 |
+
+Both `Substring` calls then start one past the end and throw `ArgumentOutOfRangeException`. The two have
+different symptoms and the second one is new information:
+
+1. `MakeLog` throws in the **caller's** frame, before `WriteLog`'s `try`. That is the crash the previous round
+   worked around for `BackupService`; the other 106 files that call `SimpleLogHelper` still have it.
+2. `CleanUpLogFiles` is called from inside `WriteLog`'s `try { … } catch (Exception) { // ignored }`, and
+   before the `StreamWriter` is opened. So on a Thai desktop, from the first day there is an old log file in
+   the folder, **nothing is ever written to the log file again** — silently. `BestEffortLog` does not help
+   here; there is nothing to catch.
+
+Neither is reachable on Linux, because the recorded path has no backslash and the reproduction needs a
+Windows-shaped one. The previous round's `#line` trick is how to write a test for the first.
+
+### For the next round
+
+1. **.NET 10.** About ten weeks to 2026-11-10. Own round, nothing else in it. Eighth round at the top of this
+   list.
+2. **`CmdImportFromRdp` harvests a Windows Credential Manager entry with no prompt.** Importing a `.rdp`
+   somebody sent you copies the saved user name and password for `TERMSRV/<address>` into the server list —
+   which may be a shared database, and which the cleartext JSON export writes out in full. Wants a
+   confirmation naming the host and the data source, and a `SecretAccessAudit` record.
+3. **`AppArgumentHelper.GetPresetArgumentList` folds the runner's path with `ToLower()`**, so on `tr-TR` no
+   preset argument list is offered for KiTTY, FileZilla or WinSCP.
+4. `ConnectRemoteApp` still launches mstsc through `cmd.exe`; the path is quoted, so `&` is inert, but a
+   `%VAR%` in a display name is still expanded.
+5. An "allow legacy SSH algorithms" per-server toggle. Still wants an editor page.
+6. Session tab mute / read-only / lock, and RDP per-monitor selection — still waiting on a human at a Windows
+   keyboard.
+
+---
+
 ## 2026-08-28 — fix round: the Thai locale that made every log call throw
 
 A fix round on the same branch, `cursor/rdp-dpapi-secret-audit-e31b`, not a feature round. No new

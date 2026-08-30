@@ -1,4 +1,5 @@
 ﻿using _1RM.Service.Locality;
+using _1RM.Utils;
 using _1RM.View.ServerView;
 using Newtonsoft.Json;
 using Shawn.Utils;
@@ -12,7 +13,7 @@ namespace _1RM.Model
     {
         public Tag(string? name, bool isPinned, int customOrder)
         {
-            _name = name?.ToLower() ?? ""; // json deserialization will set null to string
+            _name = TagName.Fold(name); // json deserialization will set null to string
             _isPinned = isPinned;
             _customOrder = customOrder;
         }
