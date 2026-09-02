@@ -1,0 +1,4 @@
+{
+  "name": "1Remote-plus",
+  "install": "bash .cursor/install.sh"
+}
